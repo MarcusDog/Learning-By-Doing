@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "preserve",
+    "rootDir": ".",
+    "outDir": "dist"
+  },
+  "include": ["src"]
+}
+

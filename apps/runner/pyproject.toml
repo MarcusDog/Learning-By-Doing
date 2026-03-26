@@ -1,0 +1,20 @@
+[project]
+name = "learning-runner"
+version = "0.1.0"
+description = "Python execution runner for the learning platform"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi==0.135.2",
+  "uvicorn==0.42.0",
+  "pydantic==2.12.5"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest==9.0.2",
+  "httpx==0.28.1"
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

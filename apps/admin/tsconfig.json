@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "preserve",
+    "ignoreDeprecations": "6.0"
+  },
+  "include": ["app", "lib", "next-env.d.ts"],
+  "exclude": ["node_modules"]
+}
