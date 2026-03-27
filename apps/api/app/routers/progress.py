@@ -1,7 +1,8 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
-from ..schemas import LearningPulse, ProgressRecord
+from ..current_user import resolve_current_user
+from ..schemas import LearningPulse, ProgressRecord, UserProfile
 from ..services import (
     complete_progress,
     get_learning_pulse,
@@ -18,8 +19,13 @@ class CompleteProgressRequest(BaseModel):
 
 
 @router.get("/me", response_model=LearningPulse)
-def me() -> LearningPulse:
-    return get_learning_pulse("demo-user")
+def me(current_user: UserProfile = Depends(resolve_current_user)) -> LearningPulse:
+    return get_learning_pulse(current_user.user_id)
+
+
+@router.get("/me/records", response_model=list[ProgressRecord])
+def my_progress_records(current_user: UserProfile = Depends(resolve_current_user)) -> list[ProgressRecord]:
+    return list_progress_for_user(current_user.user_id)
 
 
 @router.get("/{user_id}", response_model=list[ProgressRecord])

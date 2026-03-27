@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
@@ -16,6 +17,7 @@ ExplanationMode = Literal["explain", "code-map", "exercise-coach", "paper-tutor"
 RunExitStatus = Literal["completed", "failed", "timed_out"]
 AdminUnitContentStatus = Literal["draft", "review", "published", "archived"]
 AdminPromptTemplateStatus = Literal["placeholder", "ready"]
+AdminUnitOrigin = Literal["seeded", "custom"]
 VisualizationKind = Literal[
     "variable-state",
     "control-flow",
@@ -190,6 +192,7 @@ class AdminUnitInventoryItem(BaseModel):
     title: str
     audience_level: AudienceLevel
     learning_goal: str
+    origin: AdminUnitOrigin = "seeded"
     content_status: AdminUnitContentStatus
     path_ids: list[str] = Field(default_factory=list)
     path_titles: list[str] = Field(default_factory=list)
@@ -197,6 +200,10 @@ class AdminUnitInventoryItem(BaseModel):
     practice_task_count: int
     acceptance_criteria_count: int
     visualization_kind: VisualizationKind
+    ready_to_publish: bool = False
+    publish_blockers: list[str] = Field(default_factory=list)
+    review_notes: str | None = None
+    reviewed_check_keys: list[str] = Field(default_factory=list)
 
 
 class AdminPromptTemplate(BaseModel):
@@ -225,6 +232,33 @@ class AdminUnitStatusUpdate(BaseModel):
     content_status: AdminUnitContentStatus
 
 
+class AdminUnitCreateRequest(BaseModel):
+    slug: str
+    title: str
+    path_id: str
+    audience_level: AudienceLevel
+    learning_goal: str
+    visualization_kind: VisualizationKind
+
+    @model_validator(mode="after")
+    def normalize_fields(self) -> "AdminUnitCreateRequest":
+        self.slug = self.slug.strip().lower()
+        self.title = self.title.strip()
+        self.learning_goal = self.learning_goal.strip()
+
+        if not self.slug or not self.title or not self.learning_goal:
+            raise ValueError("Slug, title, and learning goal are required.")
+        if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", self.slug):
+            raise ValueError("Slug must use lowercase letters, numbers, and hyphens.")
+
+        return self
+
+
+class AdminUnitReviewUpdate(BaseModel):
+    review_notes: str = ""
+    reviewed_check_keys: list[str] = Field(default_factory=list)
+
+
 class AdminPromptTemplateUpdate(BaseModel):
     status: AdminPromptTemplateStatus
     description: str
@@ -241,12 +275,32 @@ class AdminSeedContentResponse(BaseModel):
     slugs: list[str] = Field(default_factory=list)
 
 
+class AdminDraftUnit(BaseModel):
+    slug: str
+    title: str
+    path_id: str
+    audience_level: AudienceLevel
+    learning_goal: str
+    visualization_kind: VisualizationKind
+    prerequisite_count: int = 0
+    practice_task_count: int = 0
+    acceptance_criteria_count: int = 0
+
+
+class AdminUnitReviewState(BaseModel):
+    review_notes: str = ""
+    reviewed_check_keys: list[str] = Field(default_factory=list)
+
+
 class AdminContentOpsState(BaseModel):
     unit_content_statuses: dict[str, AdminUnitContentStatus] = Field(default_factory=dict)
     prompt_templates: list[AdminPromptTemplate] = Field(default_factory=list)
     publishing_checks: list[AdminPublishingCheck] = Field(default_factory=list)
+    custom_units: list[AdminDraftUnit] = Field(default_factory=list)
+    unit_reviews: dict[str, AdminUnitReviewState] = Field(default_factory=dict)
 
 
 class LearnerState(BaseModel):
     users: dict[str, UserProfile] = Field(default_factory=dict)
     progress_records: list[ProgressRecord] = Field(default_factory=list)
+    session_tokens: dict[str, str] = Field(default_factory=dict)

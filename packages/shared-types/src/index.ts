@@ -7,6 +7,7 @@ export const RUN_JOB_STATUSES = ["queued", "running", "completed", "failed", "ti
 export const RUN_EXIT_STATUSES = ["completed", "failed", "timed_out"] as const;
 export const ADMIN_UNIT_CONTENT_STATUSES = ["draft", "review", "published", "archived"] as const;
 export const ADMIN_PROMPT_TEMPLATE_STATUSES = ["placeholder", "ready"] as const;
+export const ADMIN_UNIT_ORIGINS = ["seeded", "custom"] as const;
 export const AI_EXPLANATION_MODES = ["explain", "code-map", "exercise-coach", "paper-tutor"] as const;
 export const VISUALIZATION_KINDS = [
   "variable-state",
@@ -26,6 +27,7 @@ export type RunJobStatus = (typeof RUN_JOB_STATUSES)[number];
 export type RunExitStatus = (typeof RUN_EXIT_STATUSES)[number];
 export type AdminUnitContentStatus = (typeof ADMIN_UNIT_CONTENT_STATUSES)[number];
 export type AdminPromptTemplateStatus = (typeof ADMIN_PROMPT_TEMPLATE_STATUSES)[number];
+export type AdminUnitOrigin = (typeof ADMIN_UNIT_ORIGINS)[number];
 export type ExplanationMode = (typeof AI_EXPLANATION_MODES)[number];
 export type VisualizationKind = (typeof VISUALIZATION_KINDS)[number];
 
@@ -249,6 +251,7 @@ export type ApiAdminUnitInventoryItem = {
   title: string;
   audience_level: AudienceLevel;
   learning_goal: string;
+  origin: AdminUnitOrigin;
   content_status: AdminUnitContentStatus;
   path_ids: string[];
   path_titles: string[];
@@ -256,6 +259,10 @@ export type ApiAdminUnitInventoryItem = {
   practice_task_count: number;
   acceptance_criteria_count: number;
   visualization_kind: VisualizationKind;
+  ready_to_publish: boolean;
+  publish_blockers: string[];
+  review_notes: string | null;
+  reviewed_check_keys: string[];
 };
 
 export type ApiAdminPromptTemplate = {
@@ -282,6 +289,20 @@ export type ApiAdminConfigBundle = {
 
 export type ApiAdminUnitStatusUpdate = {
   content_status: AdminUnitContentStatus;
+};
+
+export type ApiAdminUnitCreateRequest = {
+  slug: string;
+  title: string;
+  path_id: LearningPath;
+  audience_level: AudienceLevel;
+  learning_goal: string;
+  visualization_kind: VisualizationKind;
+};
+
+export type ApiAdminUnitReviewUpdate = {
+  review_notes: string;
+  reviewed_check_keys: string[];
 };
 
 export type ApiAdminPromptTemplateUpdate = {

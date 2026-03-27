@@ -36,6 +36,109 @@ a {
   padding: 40px 0 72px;
 }
 
+.shell-chrome {
+  padding-bottom: 24px;
+}
+
+.shell-topbar,
+.session-card {
+  border: 1px solid var(--border);
+  background: var(--bg-soft);
+  backdrop-filter: blur(18px);
+  border-radius: 28px;
+}
+
+.shell-topbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 22px;
+}
+
+.brand-link {
+  display: grid;
+  gap: 6px;
+}
+
+.brand-mark {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.brand-copy {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.site-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.site-nav-link {
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 10px 14px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.site-nav-link.active {
+  color: #03111f;
+  background: linear-gradient(135deg, #7dd3fc, #f9a8d4);
+  border-color: transparent;
+}
+
+.session-card {
+  margin-top: 18px;
+  padding: 26px;
+}
+
+.session-copy h2 {
+  margin: 8px 0 0;
+  font-size: clamp(1.8rem, 4vw, 2.8rem);
+}
+
+.session-lede,
+.session-recent {
+  color: var(--muted);
+  line-height: 1.75;
+}
+
+.session-lede {
+  margin: 14px 0 0;
+  max-width: 72ch;
+}
+
+.session-recent {
+  margin: 16px 0 0;
+}
+
+.session-path-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.session-path-pill {
+  display: grid;
+  gap: 4px;
+  min-width: 160px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(3, 9, 20, 0.42);
+}
+
+.session-path-pill span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 .hero {
   display: grid;
   grid-template-columns: 1.25fr 0.9fr;
@@ -220,6 +323,20 @@ h1 {
   line-height: 1.7;
 }
 
+.path-card-progress {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.path-progress-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  color: var(--muted);
+}
+
 .path-feature {
   display: grid;
   gap: 8px;
@@ -339,6 +456,10 @@ h1 {
   padding: 26px;
 }
 
+.progress-overview {
+  margin-top: 18px;
+}
+
 .section-body {
   margin-top: 18px;
 }
@@ -378,7 +499,10 @@ h1 {
 .practice-card,
 .terminal-card,
 .coach-card,
-.note-card {
+.note-card,
+.progress-stat-card,
+.path-progress-card,
+.unit-progress-card {
   border-radius: 22px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(3, 9, 20, 0.45);
@@ -387,14 +511,18 @@ h1 {
 .frame-card,
 .practice-card,
 .terminal-card,
-.coach-card {
+.coach-card,
+.progress-stat-card,
+.path-progress-card,
+.unit-progress-card {
   padding: 18px;
 }
 
 .frame-card strong,
 .practice-card-header,
 .terminal-meta,
-.coach-meta {
+.coach-meta,
+.unit-progress-topline {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
@@ -446,19 +574,112 @@ h1 {
   font-family: var(--font-mono), monospace;
 }
 
+.progress-stat-grid,
+.path-progress-grid,
+.path-progress-list {
+  display: grid;
+  gap: 18px;
+}
+
+.progress-stat-grid,
+.path-progress-grid {
+  margin-top: 18px;
+}
+
+.progress-stat-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.path-progress-grid,
+.path-progress-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.progress-stat-card strong {
+  display: block;
+  font-size: 1.6rem;
+}
+
+.progress-stat-card span,
+.path-progress-card p,
+.path-progress-next span,
+.unit-progress-card p,
+.progress-copy {
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.path-progress-next {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.unit-progress-card.current {
+  border-color: rgba(125, 211, 252, 0.4);
+  box-shadow: 0 0 0 1px rgba(125, 211, 252, 0.16);
+}
+
+.unit-progress-card h3 {
+  margin: 14px 0 0;
+}
+
+.progress-status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+}
+
+.progress-status-not_started {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--muted);
+}
+
+.progress-status-in_progress {
+  background: rgba(125, 211, 252, 0.16);
+  color: #c8f0ff;
+}
+
+.progress-status-completed {
+  background: rgba(74, 222, 128, 0.16);
+  color: #c4ffd6;
+}
+
+.compact-metrics {
+  margin-top: 12px;
+}
+
+.inline-status {
+  display: inline-flex;
+}
+
 @media (max-width: 920px) {
+  .shell-topbar,
   .hero,
   .path-grid,
   .detail-hero,
   .detail-grid,
   .studio-grid,
   .frame-grid,
-  .practice-grid {
+  .practice-grid,
+  .lesson-lineup,
+  .progress-stat-grid,
+  .path-progress-grid,
+  .path-progress-list {
     grid-template-columns: 1fr;
   }
 
   .hero-copy {
     padding: 28px;
+  }
+
+  .session-card {
+    padding: 22px;
   }
 
   .topic-grid {

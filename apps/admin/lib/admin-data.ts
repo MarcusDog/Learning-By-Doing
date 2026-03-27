@@ -1,15 +1,18 @@
 import type {
   AdminPromptTemplateStatus,
   AdminUnitContentStatus,
+  ApiAdminUnitCreateRequest,
   ApiAdminConfigBundle,
   ApiAdminDashboardMetrics,
   ApiAdminPromptTemplate,
   ApiAdminPromptTemplateUpdate,
   ApiAdminPublishingCheck,
   ApiAdminPublishingCheckUpdate,
+  ApiAdminUnitReviewUpdate,
   ApiAdminSeedContentResponse,
   ApiAdminUnitInventoryItem,
   ApiAdminUnitStatusUpdate,
+  ApiLearningPathSummary,
   VisualizationKind,
 } from "@learning-by-doing/shared-types";
 
@@ -28,6 +31,7 @@ export type AdminUnitSummary = {
   title: string;
   audienceLevel: ApiAdminUnitInventoryItem["audience_level"];
   learningGoal: string;
+  origin: ApiAdminUnitInventoryItem["origin"];
   prerequisiteCount: number;
   practiceTaskCount: number;
   acceptanceCriteriaCount: number;
@@ -35,6 +39,10 @@ export type AdminUnitSummary = {
   pathIds: string[];
   pathTitles: string[];
   contentStatus: ApiAdminUnitInventoryItem["content_status"];
+  readyToPublish: boolean;
+  publishBlockers: string[];
+  reviewNotes: string | null;
+  reviewedCheckKeys: string[];
 };
 
 export type PromptTemplate = {
@@ -58,9 +66,11 @@ export type SeedAdminContentResult = ApiAdminSeedContentResponse;
 
 export type AdminUnitStatus = AdminUnitContentStatus;
 export type PromptTemplateStatus = AdminPromptTemplateStatus;
+export type LearningPathOption = Pick<ApiLearningPathSummary, "id" | "title">;
 
 export type AdminContentOpsData = {
   dashboard: AdminDashboard;
+  paths: LearningPathOption[];
   units: AdminUnitSummary[];
   promptTemplates: PromptTemplate[];
   publishingChecks: PublishingCheck[];
@@ -84,7 +94,21 @@ async function fetchLearningApi<T>(pathname: string, init?: RequestInit): Promis
   });
 
   if (!response.ok) {
-    throw new Error(`Learning API request failed: ${response.status} ${pathname}`);
+    let errorDetail = "";
+    try {
+      const payload = (await response.json()) as { detail?: string | string[] };
+      if (Array.isArray(payload.detail)) {
+        errorDetail = payload.detail.join("；");
+      } else if (typeof payload.detail === "string") {
+        errorDetail = payload.detail;
+      }
+    } catch {
+      errorDetail = "";
+    }
+
+    throw new Error(
+      errorDetail || `Learning API request failed: ${response.status} ${pathname}`,
+    );
   }
 
   return (await response.json()) as T;
@@ -108,6 +132,7 @@ function normalizeUnit(unit: ApiAdminUnitInventoryItem): AdminUnitSummary {
     title: unit.title,
     audienceLevel: unit.audience_level,
     learningGoal: unit.learning_goal,
+    origin: unit.origin,
     prerequisiteCount: unit.prerequisite_count,
     practiceTaskCount: unit.practice_task_count,
     acceptanceCriteriaCount: unit.acceptance_criteria_count,
@@ -115,18 +140,27 @@ function normalizeUnit(unit: ApiAdminUnitInventoryItem): AdminUnitSummary {
     pathIds: unit.path_ids,
     pathTitles: unit.path_titles,
     contentStatus: unit.content_status,
+    readyToPublish: unit.ready_to_publish,
+    publishBlockers: unit.publish_blockers,
+    reviewNotes: unit.review_notes,
+    reviewedCheckKeys: unit.reviewed_check_keys,
   };
 }
 
 export async function getAdminContentOpsData(): Promise<AdminContentOpsData> {
-  const [dashboard, units, config] = await Promise.all([
+  const [dashboard, units, config, paths] = await Promise.all([
     fetchLearningApi<ApiAdminDashboardMetrics>("/admin/dashboard"),
     fetchLearningApi<ApiAdminUnitInventoryItem[]>("/admin/content/units"),
     fetchLearningApi<ApiAdminConfigBundle>("/admin/config"),
+    fetchLearningApi<ApiLearningPathSummary[]>("/content/paths"),
   ]);
 
   return {
     dashboard: normalizeDashboard(dashboard),
+    paths: paths.map((path) => ({
+      id: path.id,
+      title: path.title,
+    })),
     units: units.map(normalizeUnit),
     promptTemplates: config.prompt_templates.map((template) => ({
       id: template.id,
@@ -167,6 +201,55 @@ export async function updateUnitStatus(
     },
     body: JSON.stringify(requestPayload),
   });
+
+  return normalizeUnit(unit);
+}
+
+export async function createAdminUnit(payload: ApiAdminUnitCreateRequest): Promise<AdminUnitSummary> {
+  const unit = await fetchLearningApi<ApiAdminUnitInventoryItem>("/admin/content/units", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  return normalizeUnit(unit);
+}
+
+export async function updateUnitReview(
+  slug: string,
+  payload: {
+    reviewNotes: string;
+    reviewedCheckKeys: string[];
+  },
+): Promise<AdminUnitSummary> {
+  const requestPayload: ApiAdminUnitReviewUpdate = {
+    review_notes: payload.reviewNotes,
+    reviewed_check_keys: payload.reviewedCheckKeys,
+  };
+
+  const unit = await fetchLearningApi<ApiAdminUnitInventoryItem>(
+    `/admin/content/units/${slug}/review`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(requestPayload),
+    },
+  );
+
+  return normalizeUnit(unit);
+}
+
+export async function publishUnit(slug: string): Promise<AdminUnitSummary> {
+  const unit = await fetchLearningApi<ApiAdminUnitInventoryItem>(
+    `/admin/content/units/${slug}/publish`,
+    {
+      method: "POST",
+    },
+  );
 
   return normalizeUnit(unit);
 }

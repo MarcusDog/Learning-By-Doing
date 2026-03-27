@@ -4,13 +4,22 @@ import type {
   ApiLearningUnit,
   ApiStudioBootstrapResponse,
 } from "../../../packages/shared-types/src";
+import { cookies } from "next/headers";
 
 import {
+  getRecommendedPathUnit,
+  getCurrentLearnerOverview,
+  getCurrentLearnerSummary,
   getLessonPath,
   getLessonUnit,
+  getStudioSessionAccessToken,
   getStudioLesson,
   listLessonPaths,
 } from "./learning-data";
+
+vi.mock("next/headers", () => ({
+  cookies: vi.fn(),
+}));
 
 const API_BASE_URL = "http://learning-api.test";
 
@@ -171,6 +180,20 @@ const pathFixtures: ApiLearningPathSummary[] = [
   },
 ];
 
+const currentLearnerFixture = {
+  user_id: "user-123",
+  name: "Session Learner",
+  email: "session@example.com",
+  plan: "free",
+} as const;
+
+const currentPulseFixture = {
+  user_id: "user-123",
+  completed_units: ["python-variables", "ai-prompt-basics"],
+  streak_days: 3,
+  recent_activity: ["打开课程", "运行示例", "保存进度"],
+} as const;
+
 const fetchMock = vi.fn();
 
 function jsonResponse(payload: unknown, status = 200) {
@@ -207,6 +230,9 @@ beforeEach(() => {
   process.env.LEARNING_API_BASE_URL = API_BASE_URL;
   fetchMock.mockReset();
   vi.stubGlobal("fetch", fetchMock);
+  vi.mocked(cookies).mockResolvedValue({
+    get: vi.fn().mockReturnValue({ value: "session-token" }),
+  } as never);
 });
 
 afterEach(() => {
@@ -347,7 +373,11 @@ describe("learning data", () => {
     };
 
     installFetchHandlers({
-      [`GET ${API_BASE_URL}/studio/demo-user/ai-prompt-basics`]: () => jsonResponse(studioFixture),
+      [`GET ${API_BASE_URL}/studio/me/ai-prompt-basics`]: (init) => {
+        const headers = new Headers(init?.headers);
+        expect(headers.get("Authorization")).toBe("Bearer session-token");
+        return jsonResponse(studioFixture);
+      },
     });
 
     const lesson = await getStudioLesson("ai-prompt-basics");
@@ -414,5 +444,392 @@ describe("learning data", () => {
 
     await expect(getLessonUnit("does-not-exist")).resolves.toBeUndefined();
     await expect(getLessonPath("does-not-exist")).resolves.toBeUndefined();
+  });
+
+  it("loads the current learner summary from auth and progress endpoints", async () => {
+    installFetchHandlers({
+      [`GET ${API_BASE_URL}/auth/me`]: (init) => {
+        const headers = new Headers(init?.headers);
+        expect(headers.get("Authorization")).toBe("Bearer session-token");
+        return jsonResponse(currentLearnerFixture);
+      },
+      [`GET ${API_BASE_URL}/progress/me`]: (init) => {
+        const headers = new Headers(init?.headers);
+        expect(headers.get("Authorization")).toBe("Bearer session-token");
+        return jsonResponse(currentPulseFixture);
+      },
+    });
+
+    const summary = await getCurrentLearnerSummary();
+
+    expect(summary).toMatchObject({
+      userId: "user-123",
+      name: "Session Learner",
+      email: "session@example.com",
+      plan: "free",
+      completedUnitCount: 2,
+      streakDays: 3,
+      recentActivity: ["打开课程", "运行示例", "保存进度"],
+    });
+  });
+
+  it("builds a cross-route learner progress snapshot from current-user records", async () => {
+    installFetchHandlers({
+      [`GET ${API_BASE_URL}/content/paths`]: () => jsonResponse(pathFixtures),
+      [`GET ${API_BASE_URL}/content/units`]: () => jsonResponse(unitFixtures),
+      [`GET ${API_BASE_URL}/auth/me`]: (init) => {
+        const headers = new Headers(init?.headers);
+        expect(headers.get("Authorization")).toBe("Bearer session-token");
+        return jsonResponse(currentLearnerFixture);
+      },
+      [`GET ${API_BASE_URL}/progress/me`]: (init) => {
+        const headers = new Headers(init?.headers);
+        expect(headers.get("Authorization")).toBe("Bearer session-token");
+        return jsonResponse(currentPulseFixture);
+      },
+      [`GET ${API_BASE_URL}/progress/me/records`]: (init) => {
+        const headers = new Headers(init?.headers);
+        expect(headers.get("Authorization")).toBe("Bearer session-token");
+        return jsonResponse([
+          {
+            user_id: "user-123",
+            unit_id: "python-variables",
+            status: "completed",
+            completed_step_ids: ["read-example", "run-example"],
+            code_draft: null,
+            notes: "完成变量入门。",
+          },
+          {
+            user_id: "user-123",
+            unit_id: "python-functions-intro",
+            status: "in_progress",
+            completed_step_ids: ["rename-function"],
+            code_draft: null,
+            notes: "函数改名练习做到一半。",
+          },
+        ]);
+      },
+    });
+
+    const paths = await listLessonPaths();
+    const overview = await getCurrentLearnerOverview(paths);
+
+    expect(overview).toMatchObject({
+      summary: {
+        userId: "user-123",
+        completedUnitCount: 2,
+      },
+      progressSnapshot: {
+        totalUnits: 4,
+        completedUnits: 2,
+        inProgressUnits: 1,
+        notStartedUnits: 1,
+        completionPercent: 50,
+        pathSummaries: [
+          {
+            pathId: "python-foundations",
+            completedUnits: 1,
+            inProgressUnits: 1,
+            nextUnitSlug: "python-functions-intro",
+            units: [
+              {
+                unitSlug: "python-variables",
+                status: "completed",
+                completedStepCount: 2,
+                totalStepCount: 2,
+              },
+              {
+                unitSlug: "python-functions-intro",
+                status: "in_progress",
+                completedStepCount: 1,
+                totalStepCount: 2,
+              },
+            ],
+          },
+          {
+            pathId: "ai-basics",
+            completedUnits: 1,
+            inProgressUnits: 0,
+            nextUnitSlug: "ai-answer-checking",
+            units: [
+              {
+                unitSlug: "ai-prompt-basics",
+                status: "completed",
+                completedStepCount: 3,
+                totalStepCount: 3,
+              },
+              {
+                unitSlug: "ai-answer-checking",
+                status: "not_started",
+                completedStepCount: 0,
+                totalStepCount: 2,
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    if (!overview) {
+      throw new Error("Expected learner overview to be available");
+    }
+
+    expect(
+      getRecommendedPathUnit(paths[0], overview.progressSnapshot.pathSummaries[0]).slug,
+    ).toBe("python-functions-intro");
+  });
+
+  it("keeps the learner summary visible when progress records fail open", async () => {
+    installFetchHandlers({
+      [`GET ${API_BASE_URL}/content/paths`]: () => jsonResponse(pathFixtures),
+      [`GET ${API_BASE_URL}/content/units`]: () => jsonResponse(unitFixtures),
+      [`GET ${API_BASE_URL}/auth/me`]: () => jsonResponse(currentLearnerFixture),
+      [`GET ${API_BASE_URL}/progress/me`]: () => jsonResponse(currentPulseFixture),
+      [`GET ${API_BASE_URL}/progress/me/records`]: () =>
+        jsonResponse({ detail: "temporary failure" }, 503),
+    });
+
+    const paths = await listLessonPaths();
+    const overview = await getCurrentLearnerOverview(paths);
+
+    expect(overview).toMatchObject({
+      summary: {
+        userId: "user-123",
+        email: "session@example.com",
+        completedUnitCount: 2,
+      },
+      progressSnapshot: {
+        completedUnits: 2,
+        inProgressUnits: 0,
+        notStartedUnits: 2,
+      },
+    });
+  });
+
+  it("returns null without calling the API when there is no session cookie", async () => {
+    vi.mocked(cookies).mockResolvedValue({
+      get: vi.fn().mockReturnValue(undefined),
+    } as never);
+
+    await expect(getCurrentLearnerSummary()).resolves.toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("returns null when the current-user session is no longer valid", async () => {
+    installFetchHandlers({
+      [`GET ${API_BASE_URL}/auth/me`]: () =>
+        jsonResponse({ detail: "Authentication required" }, 401),
+    });
+
+    await expect(getCurrentLearnerSummary()).resolves.toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails open when the current-user summary endpoints return a server error", async () => {
+    installFetchHandlers({
+      [`GET ${API_BASE_URL}/auth/me`]: () =>
+        jsonResponse({ detail: "temporary failure" }, 503),
+    });
+
+    await expect(getCurrentLearnerSummary()).resolves.toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails open when loading the current-user summary throws before a response exists", async () => {
+    installFetchHandlers({
+      [`GET ${API_BASE_URL}/auth/me`]: () => {
+        throw new Error("socket hang up");
+      },
+    });
+
+    await expect(getCurrentLearnerSummary()).resolves.toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("bootstraps a guest session for the first studio request when no cookie exists yet", async () => {
+    const studioFixture: ApiStudioBootstrapResponse = {
+      user_id: "guest-user",
+      path_id: "ai-basics",
+      path_title: "AI 基础",
+      unit: unitFixtures[2],
+      progress: {
+        user_id: "guest-user",
+        unit_id: "ai-prompt-basics",
+        status: "not_started",
+        completed_step_ids: [],
+        code_draft: null,
+        notes: null,
+      },
+      run_result: {
+        job_id: "run-guest-bootstrap",
+        stdout: "",
+        stderr: "",
+        exit_status: "completed",
+        exit_code: 0,
+        timed_out: false,
+        trace_frames: [],
+        variable_states: [],
+        duration_ms: 18,
+      },
+      ai_response: {
+        mode: "explain",
+        explanation: "欢迎开始第一节课。",
+        selected_text: null,
+      },
+      learning_pulse: {
+        user_id: "guest-user",
+        completed_units: [],
+        streak_days: 0,
+        recent_activity: ["创建访客会话"],
+      },
+    };
+
+    vi.mocked(cookies).mockResolvedValue({
+      get: vi.fn().mockReturnValue(undefined),
+    } as never);
+
+    installFetchHandlers({
+      [`POST ${API_BASE_URL}/auth/guest`]: () =>
+        jsonResponse({ access_token: "guest-session-token" }),
+      [`GET ${API_BASE_URL}/studio/me/ai-prompt-basics`]: (init) => {
+        const headers = new Headers(init?.headers);
+        expect(headers.get("Authorization")).toBe("Bearer guest-session-token");
+        return jsonResponse(studioFixture);
+      },
+    });
+
+    const lesson = await getStudioLesson("ai-prompt-basics");
+
+    expect(lesson).toMatchObject({
+      pathId: "ai-basics",
+      progress: {
+        userId: "guest-user",
+        status: "not_started",
+      },
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns undefined for studio bootstrap when an existing session token is rejected", async () => {
+    installFetchHandlers({
+      [`GET ${API_BASE_URL}/studio/me/ai-prompt-basics`]: (init) => {
+        const headers = new Headers(init?.headers);
+        expect(headers.get("Authorization")).toBe("Bearer session-token");
+        return jsonResponse({ detail: "Authentication required" }, 401);
+      },
+    });
+
+    await expect(getStudioLesson("ai-prompt-basics")).resolves.toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("reuses one bootstrapped guest session across studio and learner-summary loading", async () => {
+    let guestSessionBootstraps = 0;
+
+    vi.mocked(cookies).mockResolvedValue({
+      get: vi.fn().mockReturnValue(undefined),
+    } as never);
+
+    installFetchHandlers({
+      [`POST ${API_BASE_URL}/auth/guest`]: () => {
+        guestSessionBootstraps += 1;
+        return jsonResponse({ access_token: "guest-session-token" });
+      },
+      [`GET ${API_BASE_URL}/auth/me`]: (init) => {
+        const headers = new Headers(init?.headers);
+        expect(headers.get("Authorization")).toBe("Bearer guest-session-token");
+        return jsonResponse({
+          user_id: "guest-user",
+          name: "访客学习者",
+          email: "guest-123@learning.local",
+          plan: "free",
+        });
+      },
+      [`GET ${API_BASE_URL}/progress/me`]: (init) => {
+        const headers = new Headers(init?.headers);
+        expect(headers.get("Authorization")).toBe("Bearer guest-session-token");
+        return jsonResponse({
+          user_id: "guest-user",
+          completed_units: [],
+          streak_days: 0,
+          recent_activity: ["创建访客会话"],
+        });
+      },
+      [`GET ${API_BASE_URL}/studio/me/ai-prompt-basics`]: (init) => {
+        const headers = new Headers(init?.headers);
+        expect(headers.get("Authorization")).toBe("Bearer guest-session-token");
+        return jsonResponse({
+          user_id: "guest-user",
+          path_id: "ai-basics",
+          path_title: "AI 基础",
+          unit: unitFixtures[2],
+          progress: {
+            user_id: "guest-user",
+            unit_id: "ai-prompt-basics",
+            status: "not_started",
+            completed_step_ids: [],
+            code_draft: null,
+            notes: null,
+          },
+          run_result: {
+            job_id: "run-guest-reused",
+            stdout: "",
+            stderr: "",
+            exit_status: "completed",
+            exit_code: 0,
+            timed_out: false,
+            trace_frames: [],
+            variable_states: [],
+            duration_ms: 18,
+          },
+          ai_response: {
+            mode: "explain",
+            explanation: "欢迎开始第一节课。",
+            selected_text: null,
+          },
+          learning_pulse: {
+            user_id: "guest-user",
+            completed_units: [],
+            streak_days: 0,
+            recent_activity: ["创建访客会话"],
+          },
+        });
+      },
+    });
+
+    const accessToken = await getStudioSessionAccessToken();
+    expect(accessToken).toBe("guest-session-token");
+
+    const [lesson, summary] = await Promise.all([
+      getStudioLesson("ai-prompt-basics", { accessToken }),
+      getCurrentLearnerSummary({ accessToken }),
+    ]);
+
+    expect(lesson).toMatchObject({
+      progress: {
+        userId: "guest-user",
+      },
+    });
+    expect(summary).toMatchObject({
+      userId: "guest-user",
+      email: "guest-123@learning.local",
+    });
+    expect(guestSessionBootstraps).toBe(1);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it("returns null when guest-session bootstrap throws before a response exists", async () => {
+    vi.mocked(cookies).mockResolvedValue({
+      get: vi.fn().mockReturnValue(undefined),
+    } as never);
+
+    installFetchHandlers({
+      [`POST ${API_BASE_URL}/auth/guest`]: () => {
+        throw new Error("guest bootstrap unavailable");
+      },
+    });
+
+    await expect(getStudioSessionAccessToken()).resolves.toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

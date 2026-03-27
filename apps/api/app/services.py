@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Iterable
 import json
+import secrets
+import time
 from uuid import uuid4
 
 from pydantic import ValidationError
@@ -10,12 +12,16 @@ from pydantic import ValidationError
 from .schemas import (
     AdminContentOpsState,
     AdminConfigBundle,
+    AdminDraftUnit,
     AdminDashboardMetrics,
     AdminPublishingCheck,
     AdminPublishingCheckUpdate,
     AdminPromptTemplate,
     AdminPromptTemplateUpdate,
+    AdminUnitCreateRequest,
     AdminUnitInventoryItem,
+    AdminUnitReviewState,
+    AdminUnitReviewUpdate,
     LearningPathSummary,
     LearningPulse,
     LearnerState,
@@ -28,6 +34,10 @@ from .schemas import (
     AdminUnitContentStatus,
 )
 from .settings import get_admin_content_state_path, get_learner_state_path
+
+SESSION_COOKIE_NAME = "learning_session"
+TRANSIENT_SESSION_TTL_SECONDS = 60 * 60
+MAX_TRANSIENT_GUEST_SESSIONS = 256
 
 LEARNING_PATHS: list[LearningPathSummary] = [
     LearningPathSummary(
@@ -520,6 +530,8 @@ def _build_initial_admin_content_state() -> AdminContentOpsState:
         unit_content_statuses=dict(INITIAL_ADMIN_UNIT_CONTENT_STATUSES),
         prompt_templates=_build_admin_prompt_templates(),
         publishing_checks=_build_admin_publishing_checks(),
+        custom_units=[],
+        unit_reviews={},
     )
 
 
@@ -528,6 +540,10 @@ def _snapshot_admin_content_state() -> AdminContentOpsState:
         unit_content_statuses=dict(ADMIN_UNIT_CONTENT_STATUSES),
         prompt_templates=[template.model_copy(deep=True) for template in ADMIN_PROMPT_TEMPLATES],
         publishing_checks=[check.model_copy(deep=True) for check in ADMIN_PUBLISHING_CHECKS],
+        custom_units=[unit.model_copy(deep=True) for unit in ADMIN_CUSTOM_UNITS],
+        unit_reviews={
+            slug: review.model_copy(deep=True) for slug, review in sorted(ADMIN_UNIT_REVIEWS.items())
+        },
     )
 
 
@@ -535,10 +551,16 @@ def _apply_admin_content_state(state: AdminContentOpsState) -> None:
     global ADMIN_UNIT_CONTENT_STATUSES
     global ADMIN_PROMPT_TEMPLATES
     global ADMIN_PUBLISHING_CHECKS
+    global ADMIN_CUSTOM_UNITS
+    global ADMIN_UNIT_REVIEWS
 
     ADMIN_UNIT_CONTENT_STATUSES = dict(state.unit_content_statuses)
     ADMIN_PROMPT_TEMPLATES = [template.model_copy(deep=True) for template in state.prompt_templates]
     ADMIN_PUBLISHING_CHECKS = [check.model_copy(deep=True) for check in state.publishing_checks]
+    ADMIN_CUSTOM_UNITS = [unit.model_copy(deep=True) for unit in state.custom_units]
+    ADMIN_UNIT_REVIEWS = {
+        slug: review.model_copy(deep=True) for slug, review in state.unit_reviews.items()
+    }
 
 
 def _persist_admin_content_state() -> None:
@@ -571,6 +593,8 @@ def reload_admin_content_state() -> None:
 ADMIN_UNIT_CONTENT_STATUSES: dict[str, AdminUnitContentStatus]
 ADMIN_PROMPT_TEMPLATES: list[AdminPromptTemplate]
 ADMIN_PUBLISHING_CHECKS: list[AdminPublishingCheck]
+ADMIN_CUSTOM_UNITS: list[AdminDraftUnit]
+ADMIN_UNIT_REVIEWS: dict[str, AdminUnitReviewState]
 reload_admin_content_state()
 
 INITIAL_DEMO_PROGRESS_RECORDS: list[ProgressRecord] = [
@@ -621,6 +645,7 @@ def _build_initial_learner_state() -> LearnerState:
     return LearnerState(
         users={email: profile.model_copy(deep=True) for email, profile in INITIAL_USER_STORE.items()},
         progress_records=[record.model_copy(deep=True) for record in INITIAL_DEMO_PROGRESS_RECORDS],
+        session_tokens={},
     )
 
 
@@ -634,12 +659,16 @@ def _snapshot_learner_state() -> LearnerState:
             record.model_copy(deep=True)
             for _, record in sorted(PROGRESS_STORE.items(), key=lambda item: item[0])
         ],
+        session_tokens=dict(sorted(SESSION_STORE.items())),
     )
 
 
 def _apply_learner_state(state: LearnerState) -> None:
     global USER_STORE
     global PROGRESS_STORE
+    global SESSION_STORE
+    global TRANSIENT_USER_STORE
+    global TRANSIENT_SESSION_STORE
 
     USER_STORE = {
         email: profile.model_copy(deep=True)
@@ -649,6 +678,9 @@ def _apply_learner_state(state: LearnerState) -> None:
         (record.user_id, record.unit_id): record.model_copy(deep=True)
         for record in state.progress_records
     }
+    SESSION_STORE = dict(state.session_tokens)
+    TRANSIENT_USER_STORE = {}
+    TRANSIENT_SESSION_STORE = {}
 
 
 def _persist_learner_state() -> None:
@@ -680,6 +712,9 @@ def reload_learner_state() -> None:
 
 PROGRESS_STORE: dict[tuple[str, str], ProgressRecord]
 USER_STORE: dict[str, UserProfile]
+SESSION_STORE: dict[str, str]
+TRANSIENT_USER_STORE: dict[str, UserProfile]
+TRANSIENT_SESSION_STORE: dict[str, tuple[str, float]]
 reload_learner_state()
 
 
@@ -703,6 +738,52 @@ def get_primary_learning_path_for_unit(slug: str) -> LearningPathSummary | None:
     return paths[0] if paths else None
 
 
+def _get_learning_path_by_id(path_id: str) -> LearningPathSummary | None:
+    for path in LEARNING_PATHS:
+        if path.id == path_id:
+            return path
+    return None
+
+
+def _find_custom_admin_unit(slug: str) -> AdminDraftUnit | None:
+    for unit in ADMIN_CUSTOM_UNITS:
+        if unit.slug == slug:
+            return unit
+    return None
+
+
+def _get_admin_unit_review_state(slug: str) -> AdminUnitReviewState:
+    return ADMIN_UNIT_REVIEWS.get(slug, AdminUnitReviewState())
+
+
+def _get_publish_blockers(slug: str, content_status: AdminUnitContentStatus) -> list[str]:
+    blockers: list[str] = []
+
+    if content_status == "archived":
+        blockers.append("已归档单元不能直接发布。")
+        return blockers
+
+    if content_status == "draft":
+        blockers.append("先送审，再发布。")
+
+    review_state = _get_admin_unit_review_state(slug)
+    reviewed_check_keys = set(review_state.reviewed_check_keys)
+    for check in ADMIN_PUBLISHING_CHECKS:
+        if not check.enabled or not check.required:
+            continue
+        if check.key not in reviewed_check_keys:
+            blockers.append(f"完成检查：{check.label}")
+
+    has_ready_prompt = any(
+        template.status == "ready" and slug in template.applies_to_unit_slugs
+        for template in ADMIN_PROMPT_TEMPLATES
+    )
+    if not has_ready_prompt:
+        blockers.append("至少关联一个已就绪的提示词模板。")
+
+    return blockers
+
+
 def get_admin_dashboard_metrics() -> AdminDashboardMetrics:
     status_counts = Counter(ADMIN_UNIT_CONTENT_STATUSES.values())
     return AdminDashboardMetrics(
@@ -718,18 +799,26 @@ def get_admin_dashboard_metrics() -> AdminDashboardMetrics:
 
 def _build_admin_unit_inventory_item(unit: LearningUnit) -> AdminUnitInventoryItem:
     paths = _get_paths_for_unit(unit.slug)
+    content_status = ADMIN_UNIT_CONTENT_STATUSES.get(unit.slug, "draft")
+    review_state = _get_admin_unit_review_state(unit.slug)
+    publish_blockers = _get_publish_blockers(unit.slug, content_status)
     return AdminUnitInventoryItem(
         slug=unit.slug,
         title=unit.title,
         audience_level=unit.audience_level,
         learning_goal=unit.learning_goal,
-        content_status=ADMIN_UNIT_CONTENT_STATUSES.get(unit.slug, "draft"),
+        origin="seeded",
+        content_status=content_status,
         path_ids=[path.id for path in paths],
         path_titles=[path.title for path in paths],
         prerequisite_count=len(unit.prerequisites),
         practice_task_count=len(unit.practice_tasks),
         acceptance_criteria_count=len(unit.acceptance_criteria),
         visualization_kind=unit.visualization_spec.kind,
+        ready_to_publish=len(publish_blockers) == 0,
+        publish_blockers=publish_blockers,
+        review_notes=review_state.review_notes or None,
+        reviewed_check_keys=list(review_state.reviewed_check_keys),
     )
 
 
@@ -741,8 +830,35 @@ def _get_paths_for_unit(slug: str) -> list[LearningPathSummary]:
     return path_index.get(slug, [])
 
 
+def _build_admin_custom_unit_inventory_item(unit: AdminDraftUnit) -> AdminUnitInventoryItem:
+    path = _get_learning_path_by_id(unit.path_id)
+    content_status = ADMIN_UNIT_CONTENT_STATUSES.get(unit.slug, "draft")
+    review_state = _get_admin_unit_review_state(unit.slug)
+    publish_blockers = _get_publish_blockers(unit.slug, content_status)
+    return AdminUnitInventoryItem(
+        slug=unit.slug,
+        title=unit.title,
+        audience_level=unit.audience_level,
+        learning_goal=unit.learning_goal,
+        origin="custom",
+        content_status=content_status,
+        path_ids=[unit.path_id],
+        path_titles=[path.title] if path is not None else [unit.path_id],
+        prerequisite_count=unit.prerequisite_count,
+        practice_task_count=unit.practice_task_count,
+        acceptance_criteria_count=unit.acceptance_criteria_count,
+        visualization_kind=unit.visualization_kind,
+        ready_to_publish=len(publish_blockers) == 0,
+        publish_blockers=publish_blockers,
+        review_notes=review_state.review_notes or None,
+        reviewed_check_keys=list(review_state.reviewed_check_keys),
+    )
+
+
 def list_admin_unit_inventory() -> list[AdminUnitInventoryItem]:
-    return [_build_admin_unit_inventory_item(unit) for unit in SAMPLE_UNITS]
+    seeded_units = [_build_admin_unit_inventory_item(unit) for unit in SAMPLE_UNITS]
+    custom_units = [_build_admin_custom_unit_inventory_item(unit) for unit in ADMIN_CUSTOM_UNITS]
+    return seeded_units + custom_units
 
 
 def get_admin_config_bundle() -> AdminConfigBundle:
@@ -760,14 +876,87 @@ def reset_admin_content_state(*, remove_persisted: bool = False) -> None:
             state_path.unlink()
 
 
+def _get_admin_inventory_item_by_slug(slug: str) -> AdminUnitInventoryItem | None:
+    seeded_unit = get_learning_unit(slug)
+    if seeded_unit is not None:
+        return _build_admin_unit_inventory_item(seeded_unit)
+
+    custom_unit = _find_custom_admin_unit(slug)
+    if custom_unit is not None:
+        return _build_admin_custom_unit_inventory_item(custom_unit)
+
+    return None
+
+
+def create_admin_unit(payload: AdminUnitCreateRequest) -> AdminUnitInventoryItem | None:
+    if get_learning_unit(payload.slug) is not None or _find_custom_admin_unit(payload.slug) is not None:
+        return None
+
+    if _get_learning_path_by_id(payload.path_id) is None:
+        return None
+
+    ADMIN_CUSTOM_UNITS.append(
+        AdminDraftUnit(
+            slug=payload.slug,
+            title=payload.title,
+            path_id=payload.path_id,
+            audience_level=payload.audience_level,
+            learning_goal=payload.learning_goal,
+            visualization_kind=payload.visualization_kind,
+        )
+    )
+    ADMIN_UNIT_CONTENT_STATUSES[payload.slug] = "draft"
+    _persist_admin_content_state()
+    created_unit = _find_custom_admin_unit(payload.slug)
+    return (
+        _build_admin_custom_unit_inventory_item(created_unit)
+        if created_unit is not None
+        else None
+    )
+
+
 def update_admin_unit_status(slug: str, content_status: AdminUnitContentStatus) -> AdminUnitInventoryItem | None:
-    unit = get_learning_unit(slug)
-    if unit is None:
+    if _get_admin_inventory_item_by_slug(slug) is None:
         return None
 
     ADMIN_UNIT_CONTENT_STATUSES[slug] = content_status
+    if content_status in {"draft", "archived"}:
+        ADMIN_UNIT_REVIEWS.pop(slug, None)
     _persist_admin_content_state()
-    return _build_admin_unit_inventory_item(unit)
+    return _get_admin_inventory_item_by_slug(slug)
+
+
+def update_admin_unit_review(
+    slug: str,
+    update: AdminUnitReviewUpdate,
+) -> AdminUnitInventoryItem | None:
+    if _get_admin_inventory_item_by_slug(slug) is None:
+        return None
+
+    valid_check_keys = {check.key for check in ADMIN_PUBLISHING_CHECKS}
+    ADMIN_UNIT_REVIEWS[slug] = AdminUnitReviewState(
+        review_notes=update.review_notes.strip(),
+        reviewed_check_keys=[
+            key for key in update.reviewed_check_keys if key in valid_check_keys
+        ],
+    )
+    _persist_admin_content_state()
+    return _get_admin_inventory_item_by_slug(slug)
+
+
+def publish_admin_unit(slug: str) -> tuple[AdminUnitInventoryItem | None, list[str]]:
+    current_unit = _get_admin_inventory_item_by_slug(slug)
+    if current_unit is None:
+        return None, []
+
+    blockers = _get_publish_blockers(slug, ADMIN_UNIT_CONTENT_STATUSES.get(slug, "draft"))
+    if blockers:
+        return None, blockers
+
+    ADMIN_UNIT_CONTENT_STATUSES[slug] = "published"
+    _persist_admin_content_state()
+    published_unit = _get_admin_inventory_item_by_slug(slug)
+    return published_unit, []
 
 
 def update_admin_prompt_template(
@@ -812,6 +1001,8 @@ def update_admin_publishing_check(
 
 
 def save_progress(record: ProgressRecord) -> ProgressRecord:
+    if get_user_by_id(record.user_id) is None:
+        _promote_transient_user(record.user_id)
     PROGRESS_STORE[(record.user_id, record.unit_id)] = record
     _persist_learner_state()
     return record
@@ -836,6 +1027,8 @@ def get_learning_pulse(user_id: str) -> LearningPulse:
 
 
 def complete_progress(user_id: str, unit_id: str, completed_step_ids: Iterable[str]) -> ProgressRecord:
+    if get_user_by_id(user_id) is None:
+        _promote_transient_user(user_id)
     record = PROGRESS_STORE.get((user_id, unit_id))
     if record is None:
         record = ProgressRecord(user_id=user_id, unit_id=unit_id)
@@ -850,7 +1043,7 @@ def complete_progress(user_id: str, unit_id: str, completed_step_ids: Iterable[s
     return updated
 
 
-def register_user(email: str, name: str) -> UserProfile:
+def register_user(email: str, name: str, *, persist: bool = True) -> UserProfile:
     profile = UserProfile(
         user_id=f"user-{uuid4().hex[:8]}",
         name=name,
@@ -858,12 +1051,123 @@ def register_user(email: str, name: str) -> UserProfile:
         plan="free",
     )
     USER_STORE[email] = profile
-    _persist_learner_state()
+    if persist:
+        _persist_learner_state()
     return profile
 
 
 def get_user(email: str) -> UserProfile | None:
     return USER_STORE.get(email)
+
+
+def get_user_by_id(user_id: str) -> UserProfile | None:
+    for profile in USER_STORE.values():
+        if profile.user_id == user_id:
+            return profile
+    return None
+
+
+def _get_transient_user_by_id(user_id: str) -> UserProfile | None:
+    return TRANSIENT_USER_STORE.get(user_id)
+
+
+def _prune_transient_sessions(now: float | None = None) -> None:
+    current_time = time.time() if now is None else now
+    expired_tokens = [
+        token
+        for token, (_, expires_at) in TRANSIENT_SESSION_STORE.items()
+        if expires_at <= current_time
+    ]
+    for token in expired_tokens:
+        TRANSIENT_SESSION_STORE.pop(token, None)
+
+    active_user_ids = {user_id for user_id, _ in TRANSIENT_SESSION_STORE.values()}
+    for user_id in list(TRANSIENT_USER_STORE):
+        if user_id not in active_user_ids:
+            TRANSIENT_USER_STORE.pop(user_id, None)
+
+
+def _evict_transient_sessions_if_needed() -> None:
+    if len(TRANSIENT_SESSION_STORE) < MAX_TRANSIENT_GUEST_SESSIONS:
+        return
+
+    overflow = len(TRANSIENT_SESSION_STORE) - MAX_TRANSIENT_GUEST_SESSIONS + 1
+    oldest_tokens = sorted(
+        TRANSIENT_SESSION_STORE.items(),
+        key=lambda item: item[1][1],
+    )[:overflow]
+    for token, _ in oldest_tokens:
+        TRANSIENT_SESSION_STORE.pop(token, None)
+
+    active_user_ids = {user_id for user_id, _ in TRANSIENT_SESSION_STORE.values()}
+    for user_id in list(TRANSIENT_USER_STORE):
+        if user_id not in active_user_ids:
+            TRANSIENT_USER_STORE.pop(user_id, None)
+
+
+def _promote_transient_user(user_id: str) -> None:
+    transient_profile = _get_transient_user_by_id(user_id)
+    if transient_profile is None:
+        return
+
+    USER_STORE[transient_profile.email] = transient_profile
+    for token, (session_user_id, _) in list(TRANSIENT_SESSION_STORE.items()):
+        if session_user_id != user_id:
+            continue
+        SESSION_STORE[token] = session_user_id
+        TRANSIENT_SESSION_STORE.pop(token, None)
+    TRANSIENT_USER_STORE.pop(user_id, None)
+
+
+def issue_access_token(profile: UserProfile, *, persist: bool = True) -> str:
+    access_token = secrets.token_urlsafe(32)
+    if persist:
+        SESSION_STORE[access_token] = profile.user_id
+        _persist_learner_state()
+        return access_token
+
+    _prune_transient_sessions()
+    _evict_transient_sessions_if_needed()
+    TRANSIENT_USER_STORE[profile.user_id] = profile
+    TRANSIENT_SESSION_STORE[access_token] = (
+        profile.user_id,
+        time.time() + TRANSIENT_SESSION_TTL_SECONDS,
+    )
+    return access_token
+
+
+def resolve_user_from_access_token(access_token: str | None) -> UserProfile | None:
+    if access_token is None:
+        return None
+    user_id = SESSION_STORE.get(access_token)
+    if user_id is not None:
+        return get_user_by_id(user_id)
+
+    _prune_transient_sessions()
+    transient_session = TRANSIENT_SESSION_STORE.get(access_token)
+    if transient_session is None:
+        return None
+    transient_user_id, _ = transient_session
+    return _get_transient_user_by_id(transient_user_id)
+
+
+def resolve_user_from_authorization(authorization: str | None) -> UserProfile | None:
+    if authorization is None:
+        return None
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        return None
+    return resolve_user_from_access_token(token)
+
+
+def create_guest_user() -> UserProfile:
+    guest_id = uuid4().hex[:10]
+    return UserProfile(
+        user_id=f"user-{uuid4().hex[:8]}",
+        name="访客学习者",
+        email=f"guest-{guest_id}@learning.local",
+        plan="free",
+    )
 
 
 def reset_learner_state(*, remove_persisted: bool = False) -> None:

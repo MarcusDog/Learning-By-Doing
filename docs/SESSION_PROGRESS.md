@@ -2,6 +2,353 @@
 
 ## 2026-03-26
 
+### Automation Run: Admin Action Redirect Stability
+
+#### Completed This Run
+
+- Finished one full bounded part: `admin server-action redirect stability in the live content-ops flow`.
+- Fixed the admin server-action layer so successful redirects are no longer caught and re-labeled as `status=error&message=NEXT_REDIRECT`:
+  - added shared redirect-error rethrow handling for admin mutations
+  - kept the existing success/error flash UX, but stopped misclassifying framework redirects as product failures
+  - [apps/admin/app/actions.ts](/Users/li/learningByDoing/apps/admin/app/actions.ts)
+- Added regression coverage for the redirect bug inside the default admin test surface:
+  - success create-draft redirect now stays `status=success`
+  - inline validation redirect now preserves the intended operator-facing error message
+  - moved the test under `lib/` so `npm run test --workspace apps/admin` actually runs it every time
+  - [apps/admin/lib/actions.test.ts](/Users/li/learningByDoing/apps/admin/lib/actions.test.ts)
+- Cleaned the temporary QA-only custom units back out of persisted local admin state after live dogfooding so the workspace returns to the normal seed/custom baseline:
+  - [apps/api/.local/admin-content-state.json](/Users/li/learningByDoing/apps/api/.local/admin-content-state.json)
+
+#### Verification Evidence
+
+- Red phase: `npm run test --workspace apps/admin -- actions.test.ts` -> 2 failures; both showed the redirect digest collapsing to `/?status=error&message=NEXT_REDIRECT` instead of the intended success/validation targets.
+- Green phase: `npm run test --workspace apps/admin` -> 12 tests passed, including the new redirect regression coverage via `lib/actions.test.ts`.
+- Green phase: `npm run build --workspace apps/admin` -> success after correcting the action helper typing.
+- Green phase: `cd apps/api && uv run pytest` -> 38 tests passed.
+- Live browser QA against running admin + API servers confirmed the operator flow no longer leaks redirect internals:
+  - create draft redirected to `?status=success&message=已创建草稿单元 ...`
+  - queue for review redirected to `?status=success&message=单元 ... 已送入审核队列。`
+  - save review redirected to `?status=success&message=单元 ... 审核记录已保存。`
+  - publish redirected to `?status=success&message=单元 ... 已发布。`
+  - final clean-state load after API restart returned to the expected baseline (`自建草稿 0 个`, `已发布 3 个`) with no stray `NEXT_REDIRECT` banner
+
+#### Review / QA Findings
+
+- Dedicated review/QA subagent reported no correctness findings in the redirect fix itself.
+- Residual risk from that review: action-layer coverage is still narrow; the new regression test proves `createUnitAction`, but the same shared redirect guard is also used by seed/review/publish/template/check actions and is still only covered there through live QA rather than dedicated unit tests.
+
+#### Blockers / Concerns
+
+- Codex second-opinion review was attempted again with a scoped read-only consult, but it still failed before producing usable findings. This run again hit repeated `stream disconnected before completion` errors and the local state DB warning `migration 20 was previously applied but is missing in the resolved migrations`.
+- The gstack browse daemon still required local setup/path repair (`PATH=/Users/li/.bun/bin:$PATH /Users/li/.codex/skills/gstack/setup`) before browser QA was usable in this run.
+
+#### Recommended Next Part
+
+- Continue the deeper end-to-end QA pass across the remaining learner, studio, auth/current-user, and progress happy paths now that the admin mutation flash regression is fixed.
+
+### Automation Run: Responsive Behavior And Browser QA
+
+#### Completed This Run
+
+- Finished one full bounded part: `responsive behavior and browser QA across learner + admin surfaces`.
+- Normalized learner-facing copy so the browser UI no longer leaks internal enum values or mixed taxonomy on the main lesson flows:
+  - audience labels now render as learner-facing Chinese copy instead of raw values like `beginner_first`
+  - practice chips now render as `跟做练习` / `迁移练习` instead of `guided` / `transfer`
+  - step counters now render as `X/Y 步` instead of raw `steps`
+  - learner progress cards now avoid mixed `lesson/steps` copy where that wording felt unfinished
+  - [apps/web/lib/learning-copy.ts](/Users/li/learningByDoing/apps/web/lib/learning-copy.ts)
+  - [apps/web/components/learner-progress.tsx](/Users/li/learningByDoing/apps/web/components/learner-progress.tsx)
+  - [apps/web/app/learn/[pathId]/page.tsx](/Users/li/learningByDoing/apps/web/app/learn/[pathId]/page.tsx)
+  - [apps/web/app/learn/[pathId]/[unitSlug]/page.tsx](/Users/li/learningByDoing/apps/web/app/learn/[pathId]/[unitSlug]/page.tsx)
+- Added explicit first-time empty-state copy in studio progress so untouched learners no longer see a blank completed-steps card:
+  - `已完成步骤` now shows actionable guidance when nothing is finished yet
+  - `最近活动` also has a fallback instead of silently collapsing
+  - [apps/web/app/studio/[unitSlug]/page.tsx](/Users/li/learningByDoing/apps/web/app/studio/[unitSlug]/page.tsx)
+- Fixed admin workflow copy and mobile action behavior found during browser QA:
+  - the hero/status summary now counts only custom units that are actually still in `draft`
+  - the `自建草稿列表` no longer includes already-published custom units
+  - custom-origin badges now say `自建单元` instead of incorrectly calling published/review items `自建草稿`
+  - mobile review/inventory action groups now collapse to a single full-width column for easier operator taps
+  - [apps/admin/lib/admin-presentation.ts](/Users/li/learningByDoing/apps/admin/lib/admin-presentation.ts)
+  - [apps/admin/app/page.tsx](/Users/li/learningByDoing/apps/admin/app/page.tsx)
+  - [apps/admin/app/globals.css](/Users/li/learningByDoing/apps/admin/app/globals.css)
+- Added regression coverage for the new presentation logic:
+  - learner copy helper coverage for audience/practice/step/empty-state text
+  - admin presentation helper coverage for custom-draft filtering and neutral origin badge labels
+  - [apps/web/lib/learning-copy.test.ts](/Users/li/learningByDoing/apps/web/lib/learning-copy.test.ts)
+  - [apps/admin/lib/admin-presentation.test.ts](/Users/li/learningByDoing/apps/admin/lib/admin-presentation.test.ts)
+
+#### Verification Evidence
+
+- Red phase: `npm run test --workspace apps/admin -- admin-presentation.test.ts` -> failed because `./admin-presentation` did not exist yet.
+- Red phase: `npm run test --workspace apps/web -- learning-copy.test.ts` -> failed because `./learning-copy` did not exist yet.
+- Reviewer/QA subagent findings fixed in the same bounded part:
+  - learner pages leaked raw `beginner_first`, `guided`, `transfer`, and `steps`
+  - studio detail showed an empty completed-steps block for first-time learners
+  - admin mobile action groups stayed overly compressed and the custom-draft UI copy was misleading
+- Browser verification after fixes:
+  - lesson detail text now shows `新手优先`, `2 个练习任务`, `跟做练习`, and `迁移练习` instead of raw internal enum values
+  - studio detail text now shows `完成度 0/3 步` plus `还没有完成步骤，先运行示例或完成第一个练习。`
+  - admin text now shows `自建草稿 0 个`, keeps `Tmp` labeled `自建单元`, and renders the custom-drafts panel empty instead of mixing in a published custom unit
+  - admin mobile DOM check at `375px` reported `actionRowColumns: 1fr` and `inventoryColumns: 1fr`
+- Green phase: `npm run test --workspace apps/web` -> 20 tests passed.
+- Green phase: `npm run test --workspace apps/admin` -> 10 tests passed.
+- Green phase: `cd apps/api && uv run pytest` -> 38 tests passed.
+- Green phase: `npm run build --workspace apps/web` -> success; `/`, `/learn/[pathId]`, `/learn/[pathId]/[unitSlug]`, `/studio`, and `/studio/[unitSlug]` remain available and dynamic as expected.
+- Green phase: `npm run build --workspace apps/admin` -> success.
+
+#### Blockers / Concerns
+
+- Codex second-opinion review was attempted again with `codex review --base main -c 'model_reasoning_effort="xhigh"' --enable web_search_cached`, but it still failed before producing findings. This run again hit repeated `stream disconnected before completion` errors and the local state DB warning `migration 20 was previously applied but is missing in the resolved migrations`.
+- The local gstack browse daemon was flaky during this pass: it intermittently reused stale page state, returned blank screenshots, and left port `18800` occupied. I still extracted reliable verification via browser text/DOM checks plus selected screenshots, but the tool itself is not yet dependable enough to treat as a strong artifact source every run.
+- Regression coverage improved at the helper/presentation layer, but rendered route/component assertions for these pages are still a follow-up rather than part of this run.
+
+#### Recommended Next Part
+
+- Run a deeper end-to-end QA pass across the critical learner, studio, auth/current-user, progress, and admin happy paths, then fix the issues found in that same pass.
+
+### Automation Run: Admin Content-Ops Workflow Completion
+
+#### Completed This Run
+
+- Finished one full bounded part: `admin/content operations workflow completion`.
+- Extended the backend admin contract and persisted state so content ops can now:
+  - create custom draft units with path/audience/visualization metadata
+  - save per-unit review notes plus checklist acknowledgements
+  - publish only through a guarded publish action instead of a raw status flip
+  - clear stale review approvals when a unit is moved back to draft or archived
+  - reject blank/invalid create payloads at the API boundary
+  - [apps/api/app/schemas.py](/Users/li/learningByDoing/apps/api/app/schemas.py)
+  - [apps/api/app/services.py](/Users/li/learningByDoing/apps/api/app/services.py)
+  - [apps/api/app/routers/admin.py](/Users/li/learningByDoing/apps/api/app/routers/admin.py)
+  - [packages/shared-types/src/index.ts](/Users/li/learningByDoing/packages/shared-types/src/index.ts)
+- Reworked the admin data layer and server actions so the app can drive the new workflow end-to-end:
+  - create custom drafts
+  - send drafts into review
+  - save review decisions
+  - publish review-ready units
+  - surface API validation/blocker messages in flash feedback
+  - [apps/admin/lib/admin-data.ts](/Users/li/learningByDoing/apps/admin/lib/admin-data.ts)
+  - [apps/admin/app/actions.ts](/Users/li/learningByDoing/apps/admin/app/actions.ts)
+- Rebuilt the admin page from placeholder inventory editing into a clearer workflow surface with:
+  - a dedicated create-draft form
+  - a review queue with checklist + blocker visibility
+  - inventory actions for draft/review/published/archived states
+  - custom-draft empty states
+  - route-level loading and error screens
+  - re-enable-able publishing checks in the settings panel
+  - [apps/admin/app/page.tsx](/Users/li/learningByDoing/apps/admin/app/page.tsx)
+  - [apps/admin/app/loading.tsx](/Users/li/learningByDoing/apps/admin/app/loading.tsx)
+  - [apps/admin/app/error.tsx](/Users/li/learningByDoing/apps/admin/app/error.tsx)
+  - [apps/admin/app/globals.css](/Users/li/learningByDoing/apps/admin/app/globals.css)
+- Expanded regression coverage for the new workflow rules and contracts:
+  - create-draft success + invalid create rejection
+  - review + publish happy path
+  - direct publish bypass rejection on the generic status endpoint
+  - stale review reset when moving back to draft
+  - persisted custom-unit + review state reload
+  - disabled publishing checks still round-trip through the admin data layer
+  - [apps/api/tests/test_admin.py](/Users/li/learningByDoing/apps/api/tests/test_admin.py)
+  - [apps/admin/lib/admin-data.test.ts](/Users/li/learningByDoing/apps/admin/lib/admin-data.test.ts)
+
+#### Verification Evidence
+
+- Red phase: `cd apps/api && uv run pytest tests/test_admin.py` -> 4 failures covering missing create/review/publish endpoints and missing publish blockers on inventory items.
+- Red phase: `npm run test --workspace apps/admin -- admin-data.test.ts` -> 4 failures because admin workflow normalization/functions did not exist yet.
+- Reviewer/QA subagent findings fixed in the same bounded part:
+  - blocked direct `PATCH ... {"content_status":"published"}` bypasses
+  - cleared stale review approvals when a unit returns to draft
+  - kept disabled publishing checks visible so operators can re-enable them
+  - tightened backend create validation for blank/invalid slugs and required fields
+- Green phase: `cd apps/api && uv run pytest tests/test_admin.py` -> 14 tests passed.
+- Green phase: `cd apps/api && uv run pytest` -> 38 tests passed.
+- Green phase: `npm run test --workspace apps/admin` -> 8 tests passed.
+- Green phase: `npm run typecheck --workspace apps/admin` -> success.
+- Green phase: `npm run test --workspace packages/shared-types` -> 6 tests passed.
+- Green phase: `npm run build:admin` -> success; admin app still renders `/` dynamically (`ƒ`).
+
+#### Blockers / Concerns
+
+- Codex second-opinion review was attempted again with `codex review --base main -c 'model_reasoning_effort="xhigh"' --enable web_search_cached`, but it failed before producing findings. This run again hit repeated `stream disconnected before completion` errors plus the local state DB warning `migration 20 was previously applied but is missing in the resolved migrations`.
+- The dedicated review/QA subagent completed and surfaced four issues; all four were fixed and re-verified in this same run.
+- This run verified the admin workflow through API/data/build coverage, but it did not yet dogfood a live browser session against running admin + API servers. Visual/browser behavior therefore remains a follow-up rather than evidence from this run.
+
+#### Recommended Next Part
+
+- Verify responsive behavior and browser-level QA across the learner and admin surfaces, then fix the issues found in that same pass.
+
+### Automation Run: Cross-Page Learner Progress Summaries
+
+#### Completed This Run
+
+- Finished one full bounded part: `inspectable learner progress across landing, path, lesson, and studio`.
+- Added a current-user progress-records route so the backend can resolve per-unit progress for the active learner through the same auth/session boundary as `/auth/me` and `/progress/me`:
+  - [apps/api/app/routers/progress.py](/Users/li/learningByDoing/apps/api/app/routers/progress.py)
+  - [apps/api/tests/test_app.py](/Users/li/learningByDoing/apps/api/tests/test_app.py)
+  - [apps/api/tests/test_learner_state.py](/Users/li/learningByDoing/apps/api/tests/test_learner_state.py)
+- Extended the web data layer with a learner-overview/progress-snapshot flow that now:
+  - loads `/auth/me`, `/progress/me`, and `/progress/me/records`
+  - computes per-path and per-unit progress summaries for the live lesson catalog
+  - recommends the next unit for resume/navigation targets
+  - fails open when `/progress/me/records` is temporarily unavailable so current-user visibility does not regress to signed-out
+  - normalizes pulse-only completed units to full step counts so `completed` no longer appears as `0/N`
+  - [apps/web/lib/learning-data.ts](/Users/li/learningByDoing/apps/web/lib/learning-data.ts)
+  - [apps/web/lib/learning-data.test.ts](/Users/li/learningByDoing/apps/web/lib/learning-data.test.ts)
+- Added shared progress UI components and route adoption so progress is now directly visible across the main learner surfaces:
+  - landing page overview metrics and per-path resume state
+  - path page progress summary plus unit-by-unit checklist
+  - lesson page current-unit progress plus path map
+  - studio index resume cards and studio detail path-progress map
+  - shell-level aggregate progress pills for signed-in learners
+  - [apps/web/components/learner-progress.tsx](/Users/li/learningByDoing/apps/web/components/learner-progress.tsx)
+  - [apps/web/components/path-card.tsx](/Users/li/learningByDoing/apps/web/components/path-card.tsx)
+  - [apps/web/components/learner-shell.tsx](/Users/li/learningByDoing/apps/web/components/learner-shell.tsx)
+  - [apps/web/app/page.tsx](/Users/li/learningByDoing/apps/web/app/page.tsx)
+  - [apps/web/app/learn/[pathId]/page.tsx](/Users/li/learningByDoing/apps/web/app/learn/[pathId]/page.tsx)
+  - [apps/web/app/learn/[pathId]/[unitSlug]/page.tsx](/Users/li/learningByDoing/apps/web/app/learn/[pathId]/[unitSlug]/page.tsx)
+  - [apps/web/app/studio/page.tsx](/Users/li/learningByDoing/apps/web/app/studio/page.tsx)
+  - [apps/web/app/studio/[unitSlug]/page.tsx](/Users/li/learningByDoing/apps/web/app/studio/[unitSlug]/page.tsx)
+  - [apps/web/app/globals.css](/Users/li/learningByDoing/apps/web/app/globals.css)
+
+#### Verification Evidence
+
+- Baseline before edits: `cd apps/api && uv run pytest tests/test_app.py tests/test_learner_state.py` -> 11 tests passed.
+- Baseline before edits: `npm run test --workspace apps/web -- learning-data.test.ts` -> 14 tests passed.
+- Red phase: `cd apps/api && uv run pytest tests/test_app.py tests/test_learner_state.py -k 'progress_records_route or current_user_session_routes_resolve_reloaded_non_demo_learner'` -> 2 failures because `/progress/me/records` still fell through to the generic `/{user_id}/{unit_id}` route.
+- Red phase: `npm run test --workspace apps/web -- learning-data.test.ts` -> 1 failure because `getCurrentLearnerOverview()` did not exist yet.
+- Review/QA subagent found and I fixed follow-up issues in the same bounded part:
+  - `/progress/me/records` failures regressed the learner shell to a signed-out fallback instead of preserving current-user state
+  - pulse-only completed units showed contradictory `completed` + `0/N steps` summaries
+  - path/studio resume CTAs still pointed at featured units instead of the actual next recommended unit
+- Final green phase: `npm run test --workspace apps/web` -> 16 tests passed.
+- Final green phase: `npm run typecheck --workspace apps/web` -> success.
+- Final green phase: `npm run build:web` -> success; `/`, `/learn/[pathId]`, `/learn/[pathId]/[unitSlug]`, `/studio`, and `/studio/[unitSlug]` remain dynamic (`ƒ`).
+- Final green phase: `cd apps/api && uv run pytest` -> 33 tests passed.
+- Dedicated review/QA recheck subagent reran after fixes and reported no new findings.
+
+#### Blockers / Concerns
+
+- Codex second-opinion review was attempted again, but the local `codex` CLI still failed before producing usable findings. This run again hit repeated `stream disconnected before completion` errors plus the local state DB warning `migration 20 was previously applied but is missing in the resolved migrations`.
+- If `/progress/me/records` fails open, the UI preserves the learner summary and completed-unit history, but in-progress units temporarily degrade to `not_started` until the records endpoint recovers.
+- Regression coverage is stronger now, but it is still more data-layer oriented than route-render oriented; full rendered route/component assertions remain a follow-up.
+
+#### Recommended Next Part
+
+- Complete the admin/content operations workflow with actionable create, review, publish, and empty/error/loading states so the website foundation is closer to product-complete.
+
+### Automation Run: Learner Shell Current-User Visibility
+
+#### Completed This Run
+
+- Finished one full bounded part: `web learner shell + current-user visibility across learner routes`.
+- Added a shared learner shell that now wraps landing, path, lesson, and studio routes with:
+  - top-level learner navigation across home, path pages, and studio
+  - a current-user summary card that shows signed-out guidance or the active learner identity, plan, streak, and recent activity
+  - a studio fallback state when the request cannot establish or reuse a learner session
+  - [apps/web/components/learner-shell.tsx](/Users/li/learningByDoing/apps/web/components/learner-shell.tsx)
+  - [apps/web/app/page.tsx](/Users/li/learningByDoing/apps/web/app/page.tsx)
+  - [apps/web/app/learn/[pathId]/page.tsx](/Users/li/learningByDoing/apps/web/app/learn/[pathId]/page.tsx)
+  - [apps/web/app/learn/[pathId]/[unitSlug]/page.tsx](/Users/li/learningByDoing/apps/web/app/learn/[pathId]/[unitSlug]/page.tsx)
+  - [apps/web/app/studio/page.tsx](/Users/li/learningByDoing/apps/web/app/studio/page.tsx)
+  - [apps/web/app/studio/[unitSlug]/page.tsx](/Users/li/learningByDoing/apps/web/app/studio/[unitSlug]/page.tsx)
+  - [apps/web/app/globals.css](/Users/li/learningByDoing/apps/web/app/globals.css)
+- Extended the web data layer so learner-shell session resolution is now robust across:
+  - cookie-backed current-user summary loading from `/auth/me` and `/progress/me`
+  - first-request guest session bootstrap for studio routes
+  - reuse of a single bootstrapped studio access token across summary + studio bootstrap fetches
+  - fail-open handling for transient `/auth/me`, `/progress/me`, `/auth/guest`, and expired `/studio/me/...` auth failures so the UI falls back instead of throwing
+  - [apps/web/lib/learning-data.ts](/Users/li/learningByDoing/apps/web/lib/learning-data.ts)
+- Expanded frontend regression coverage to lock the new session-shell behavior in the data layer:
+  - current-user summary loads from auth + progress
+  - no-cookie routes stay signed out
+  - 401/5xx/thrown auth-summary failures degrade to `null`
+  - first studio request bootstraps a guest session
+  - studio + learner-summary reuse one bootstrapped token
+  - expired or rejected studio session tokens degrade to fallback instead of crashing
+  - thrown guest bootstrap requests return `null`
+  - [apps/web/lib/learning-data.test.ts](/Users/li/learningByDoing/apps/web/lib/learning-data.test.ts)
+
+#### Verification Evidence
+
+- Baseline before edits: `npm run test --workspace apps/web -- learning-data.test.ts` -> 5 tests passed.
+- Red phase: `npm run test --workspace apps/web -- learning-data.test.ts` -> failed because `getCurrentLearnerSummary()` did not exist yet for the shell.
+- Red phase: `npm run test --workspace apps/web -- learning-data.test.ts` -> failed because current-user summary still threw on `503` and first-request studio bootstrap still omitted auth when no cookie existed.
+- Review/QA subagent found and I fixed follow-up issues in the same bounded part:
+  - thrown `/auth/me` and `/progress/me` request failures still crashed learner pages
+  - studio summary + studio bootstrap were minting multiple guest sessions on the same first request
+  - thrown `/auth/guest` bootstrap requests still broke studio routes
+  - expired transient `learning_session` cookies still crashed `/studio/[unitSlug]`
+- Final green phase: `npm run test --workspace apps/web -- learning-data.test.ts` -> 14 tests passed.
+- Final green phase: `npm run typecheck --workspace apps/web` -> success.
+- Final green phase: `npm run build:web` -> success; `/`, `/learn/[pathId]`, `/learn/[pathId]/[unitSlug]`, `/studio`, and `/studio/[unitSlug]` remain dynamic (`ƒ`), and the studio cookie bootstrap still reports as `ƒ Proxy`.
+
+#### Blockers / Concerns
+
+- Codex second-opinion review was attempted again, but the local `codex` CLI still failed before producing usable findings. This run again hit `stream disconnected before completion` plus the local state DB warning `migration 20 was previously applied but is missing in the resolved migrations`.
+- The bounded part is functionally complete, but UI protection is still strongest at the data-layer boundary. The remaining notable quality follow-up is rendered regression coverage for the shell itself rather than relying on typecheck/build for route adoption.
+
+#### Recommended Next Part
+
+- Make learner progress inspectable across landing, path, lesson, and studio surfaces with per-unit progress states and trustworthy cross-page summaries.
+
+### Automation Run: Current User Session Resolver
+
+#### Completed This Run
+
+- Finished one full bounded part: `shared current-user/session resolution for auth, progress, and studio`.
+- Replaced the hardcoded demo-user `/me` behavior with shared current-user resolution that now:
+  - accepts persisted opaque bearer session tokens for registered learners
+  - accepts the `learning_session` cookie path for cookie-backed current-user requests
+  - maps `/studio/me/[unit]` onto the resolved learner instead of treating `me` as a literal user id
+  - [apps/api/app/current_user.py](/Users/li/learningByDoing/apps/api/app/current_user.py)
+  - [apps/api/app/routers/auth.py](/Users/li/learningByDoing/apps/api/app/routers/auth.py)
+  - [apps/api/app/routers/progress.py](/Users/li/learningByDoing/apps/api/app/routers/progress.py)
+  - [apps/api/app/routers/studio.py](/Users/li/learningByDoing/apps/api/app/routers/studio.py)
+- Hardened learner session issuance so current-user auth no longer trusts email-shaped demo tokens. Durable learners now get opaque session tokens persisted in learner state, while transient guest sessions stay out of durable state until the learner actually mutates progress:
+  - [apps/api/app/services.py](/Users/li/learningByDoing/apps/api/app/services.py)
+  - [apps/api/app/schemas.py](/Users/li/learningByDoing/apps/api/app/schemas.py)
+- Added a guest-session bootstrap path for the web studio flow that:
+  - boots a session cookie only on `/studio` routes
+  - forwards the per-request cookie into the API on server-side fetches
+  - avoids process-global auth env coupling in the web data layer
+  - [apps/web/proxy.ts](/Users/li/learningByDoing/apps/web/proxy.ts)
+  - [apps/web/lib/learning-data.ts](/Users/li/learningByDoing/apps/web/lib/learning-data.ts)
+- Expanded regression coverage to prove:
+  - cookie-only `/auth/me` and `/progress/me` resolution works
+  - forged email-shaped tokens are rejected
+  - reloaded non-demo learners resolve correctly through `/auth/me`, `/progress/me`, and `/studio/me/...`
+  - guest sessions stay transient until the learner actually saves progress, at which point the guest is promoted into durable learner state
+  - [apps/api/tests/test_app.py](/Users/li/learningByDoing/apps/api/tests/test_app.py)
+  - [apps/api/tests/test_learner_state.py](/Users/li/learningByDoing/apps/api/tests/test_learner_state.py)
+  - [apps/web/lib/learning-data.test.ts](/Users/li/learningByDoing/apps/web/lib/learning-data.test.ts)
+
+#### Verification Evidence
+
+- Baseline before edits: `cd apps/api && uv run pytest tests/test_app.py tests/test_learner_state.py tests/test_studio.py` -> 7 tests passed.
+- Baseline before edits: `npm run test --workspace apps/web -- learning-data.test.ts` -> 5 tests passed.
+- Red phase: `cd apps/api && uv run pytest tests/test_learner_state.py -k current_user_session_routes` -> failed because `/auth/me` still returned `learner@example.com` instead of the reloaded non-demo learner.
+- Red phase: `cd apps/api && uv run pytest tests/test_app.py -k current_user_routes_require_bearer_token` -> failed because `/auth/me` still returned `200` without auth.
+- Red phase: `npm run test --workspace apps/web -- learning-data.test.ts` -> failed because the studio loader still requested `/studio/demo-user/...`.
+- Review/QA subagent found additional gaps during the same run:
+  - forgeable email-shaped tokens at the new auth boundary
+  - process-global web token injection instead of request-scoped session resolution
+  - cookie-only `/auth/me` and `/progress/me` resolution not actually wired through FastAPI DI
+  - transient guest session growth path
+- Green phase: `cd apps/api && uv run pytest` -> 32 tests passed.
+- Green phase: `npm run test --workspace apps/web` -> 5 tests passed.
+- Green phase: `npm run typecheck --workspace apps/web` -> success.
+- Green phase: `npm run build:web` -> success; `/`, `/learn/[pathId]`, `/learn/[pathId]/[unitSlug]`, `/studio`, and `/studio/[unitSlug]` remain available and the app now reports the studio cookie bootstrap as `ƒ Proxy`.
+
+#### Blockers / Concerns
+
+- Transient guest sessions are now bounded by TTL plus capped eviction instead of persisting indefinitely, but they are still a temporary bridge until the learner UI owns a clearer auth/current-user flow.
+- Codex second-opinion review was attempted again, but the local `codex` CLI still did not yield a usable review result during this run.
+- The web app now resolves current user only where the product currently needs it most: studio entry. The broader learner shell still does not surface session identity/progress in navigation or other pages.
+
+#### Recommended Next Part
+
+- Surface current-user session state in the web learner shell and navigation so learner identity/progress are visible beyond the studio bootstrap path.
+
 ### Automation Run: Learner State Persistence
 
 #### Completed This Run

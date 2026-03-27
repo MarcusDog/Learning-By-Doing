@@ -1,21 +1,27 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   ApiAdminConfigBundle,
+  ApiAdminUnitCreateRequest,
   ApiAdminDashboardMetrics,
   ApiAdminPromptTemplate,
   ApiAdminPromptTemplateUpdate,
   ApiAdminPublishingCheck,
   ApiAdminPublishingCheckUpdate,
+  ApiAdminUnitReviewUpdate,
   ApiAdminSeedContentResponse,
   ApiAdminUnitInventoryItem,
   ApiAdminUnitStatusUpdate,
+  ApiLearningPathSummary,
 } from "@learning-by-doing/shared-types";
 
 import {
+  createAdminUnit,
   getAdminContentOpsData,
+  publishUnit,
   seedAdminContent,
   updatePublishingCheck,
   updatePromptTemplate,
+  updateUnitReview,
   updateUnitStatus,
 } from "./admin-data";
 
@@ -82,6 +88,7 @@ describe("admin data", () => {
         title: "第一段 Python",
         audience_level: "beginner_first",
         learning_goal: "理解变量、表达式和输出的关系。",
+        origin: "seeded",
         prerequisite_count: 0,
         practice_task_count: 2,
         acceptance_criteria_count: 2,
@@ -89,12 +96,17 @@ describe("admin data", () => {
         path_ids: ["python-foundations"],
         path_titles: ["Python 入门"],
         content_status: "published",
+        ready_to_publish: true,
+        publish_blockers: [],
+        review_notes: null,
+        reviewed_check_keys: ["content-completeness"],
       },
       {
         slug: "ai-prompt-basics",
         title: "提示词第一步",
         audience_level: "beginner_first",
         learning_goal: "学会把模糊问题改写成清晰请求。",
+        origin: "custom",
         prerequisite_count: 0,
         practice_task_count: 2,
         acceptance_criteria_count: 2,
@@ -102,6 +114,24 @@ describe("admin data", () => {
         path_ids: ["ai-basics"],
         path_titles: ["AI 基础"],
         content_status: "draft",
+        ready_to_publish: false,
+        publish_blockers: ["完成检查：内容完整性"],
+        review_notes: "还需要补全审核。",
+        reviewed_check_keys: [],
+      },
+    ];
+    const pathsPayload: ApiLearningPathSummary[] = [
+      {
+        id: "python-foundations",
+        title: "Python 入门",
+        description: "从变量开始。",
+        featured_unit_slugs: ["python-variables"],
+      },
+      {
+        id: "ai-basics",
+        title: "AI 基础",
+        description: "从提示词开始。",
+        featured_unit_slugs: ["ai-prompt-basics"],
       },
     ];
     const configPayload: ApiAdminConfigBundle = {
@@ -123,6 +153,13 @@ describe("admin data", () => {
           required: true,
           enabled: true,
         },
+        {
+          key: "seed-sync",
+          label: "种子数据同步",
+          description: "确认种子与后台流程保持一致。",
+          required: false,
+          enabled: false,
+        },
       ],
     };
 
@@ -130,6 +167,7 @@ describe("admin data", () => {
       [`GET ${API_BASE_URL}/admin/dashboard`]: () => jsonResponse(dashboardPayload),
       [`GET ${API_BASE_URL}/admin/content/units`]: () => jsonResponse(unitsPayload),
       [`GET ${API_BASE_URL}/admin/config`]: () => jsonResponse(configPayload),
+      [`GET ${API_BASE_URL}/content/paths`]: () => jsonResponse(pathsPayload),
     });
 
     const result = await getAdminContentOpsData();
@@ -147,6 +185,7 @@ describe("admin data", () => {
       units: [
         {
           slug: "python-variables",
+          origin: "seeded",
           audienceLevel: "beginner_first",
           prerequisiteCount: 0,
           practiceTaskCount: 2,
@@ -155,10 +194,28 @@ describe("admin data", () => {
           pathIds: ["python-foundations"],
           pathTitles: ["Python 入门"],
           contentStatus: "published",
+          readyToPublish: true,
+          publishBlockers: [],
+          reviewNotes: null,
+          reviewedCheckKeys: ["content-completeness"],
         },
         {
           slug: "ai-prompt-basics",
+          origin: "custom",
           contentStatus: "draft",
+          readyToPublish: false,
+          publishBlockers: ["完成检查：内容完整性"],
+          reviewNotes: "还需要补全审核。",
+        },
+      ],
+      paths: [
+        {
+          id: "python-foundations",
+          title: "Python 入门",
+        },
+        {
+          id: "ai-basics",
+          title: "AI 基础",
         },
       ],
       promptTemplates: [
@@ -177,9 +234,15 @@ describe("admin data", () => {
           required: true,
           enabled: true,
         },
+        {
+          key: "seed-sync",
+          label: "种子数据同步",
+          required: false,
+          enabled: false,
+        },
       ],
     });
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
   it("posts the seed action to the live API", async () => {
@@ -208,6 +271,7 @@ describe("admin data", () => {
       title: "提示词第一步",
       audience_level: "beginner_first",
       learning_goal: "学会把模糊问题改写成清晰请求。",
+      origin: "seeded",
       prerequisite_count: 0,
       practice_task_count: 2,
       acceptance_criteria_count: 2,
@@ -215,6 +279,10 @@ describe("admin data", () => {
       path_ids: ["ai-basics"],
       path_titles: ["AI 基础"],
       content_status: "review",
+      ready_to_publish: false,
+      publish_blockers: ["完成检查：内容完整性"],
+      review_notes: null,
+      reviewed_check_keys: [],
     };
 
     installFetchHandlers({
@@ -232,6 +300,90 @@ describe("admin data", () => {
     await expect(updateUnitStatus("ai-prompt-basics", "review")).resolves.toMatchObject({
       slug: "ai-prompt-basics",
       contentStatus: "review",
+    });
+  });
+
+  it("creates a custom admin draft unit through the live API", async () => {
+    const requestPayload: ApiAdminUnitCreateRequest = {
+      slug: "network-packets-intro",
+      title: "数据包先去哪",
+      path_id: "ai-basics",
+      audience_level: "beginner_first",
+      learning_goal: "建立发送端到接收端的直觉。",
+      visualization_kind: "data-structure",
+    };
+    const responsePayload: ApiAdminUnitInventoryItem = {
+      ...requestPayload,
+      origin: "custom",
+      content_status: "draft",
+      path_ids: ["ai-basics"],
+      path_titles: ["AI 基础"],
+      prerequisite_count: 0,
+      practice_task_count: 0,
+      acceptance_criteria_count: 0,
+      ready_to_publish: false,
+      publish_blockers: ["先送审，再发布。"],
+      review_notes: null,
+      reviewed_check_keys: [],
+    };
+
+    installFetchHandlers({
+      [`POST ${API_BASE_URL}/admin/content/units`]: (init) => {
+        expect(init?.method).toBe("POST");
+        expect(init?.body).toBe(JSON.stringify(requestPayload));
+
+        return jsonResponse(responsePayload, 201);
+      },
+    });
+
+    await expect(createAdminUnit(requestPayload)).resolves.toMatchObject({
+      slug: "network-packets-intro",
+      origin: "custom",
+      contentStatus: "draft",
+    });
+  });
+
+  it("patches per-unit review decisions through the live API", async () => {
+    const requestPayload: ApiAdminUnitReviewUpdate = {
+      review_notes: "结构清楚，可以排期。",
+      reviewed_check_keys: ["content-completeness", "visualization-match"],
+    };
+    const responsePayload: ApiAdminUnitInventoryItem = {
+      slug: "network-packets-intro",
+      title: "数据包先去哪",
+      audience_level: "beginner_first",
+      learning_goal: "建立发送端到接收端的直觉。",
+      origin: "custom",
+      content_status: "review",
+      path_ids: ["ai-basics"],
+      path_titles: ["AI 基础"],
+      prerequisite_count: 0,
+      practice_task_count: 0,
+      acceptance_criteria_count: 0,
+      visualization_kind: "data-structure",
+      ready_to_publish: false,
+      publish_blockers: ["完成检查：AI 语气检查"],
+      review_notes: "结构清楚，可以排期。",
+      reviewed_check_keys: ["content-completeness", "visualization-match"],
+    };
+
+    installFetchHandlers({
+      [`PATCH ${API_BASE_URL}/admin/content/units/network-packets-intro/review`]: (init) => {
+        expect(init?.method).toBe("PATCH");
+        expect(init?.body).toBe(JSON.stringify(requestPayload));
+
+        return jsonResponse(responsePayload);
+      },
+    });
+
+    await expect(
+      updateUnitReview("network-packets-intro", {
+        reviewNotes: "结构清楚，可以排期。",
+        reviewedCheckKeys: ["content-completeness", "visualization-match"],
+      }),
+    ).resolves.toMatchObject({
+      slug: "network-packets-intro",
+      reviewNotes: "结构清楚，可以排期。",
     });
   });
 
@@ -303,6 +455,44 @@ describe("admin data", () => {
       key: "seed-sync",
       enabled: false,
       required: false,
+    });
+  });
+
+  it("publishes a review-ready unit through the live API", async () => {
+    const responsePayload: ApiAdminUnitInventoryItem = {
+      slug: "network-packets-intro",
+      title: "数据包先去哪",
+      audience_level: "beginner_first",
+      learning_goal: "建立发送端到接收端的直觉。",
+      origin: "custom",
+      content_status: "published",
+      path_ids: ["ai-basics"],
+      path_titles: ["AI 基础"],
+      prerequisite_count: 0,
+      practice_task_count: 0,
+      acceptance_criteria_count: 0,
+      visualization_kind: "data-structure",
+      ready_to_publish: true,
+      publish_blockers: [],
+      review_notes: "结构清楚，可以排期。",
+      reviewed_check_keys: [
+        "content-completeness",
+        "visualization-match",
+        "ai-tone",
+      ],
+    };
+
+    installFetchHandlers({
+      [`POST ${API_BASE_URL}/admin/content/units/network-packets-intro/publish`]: (init) => {
+        expect(init?.method).toBe("POST");
+        return jsonResponse(responsePayload);
+      },
+    });
+
+    await expect(publishUnit("network-packets-intro")).resolves.toMatchObject({
+      slug: "network-packets-intro",
+      contentStatus: "published",
+      readyToPublish: true,
     });
   });
 });

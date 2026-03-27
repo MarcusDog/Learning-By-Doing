@@ -1,9 +1,11 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from ..current_user import resolve_optional_current_user
 from ..schemas import (
     AIDiagnoseRequest,
     ProgressRecord,
     RunCodeRequest,
+    UserProfile,
     StudioBootstrapResponse,
 )
 from ..services import (
@@ -34,8 +36,7 @@ def _select_ai_focus_text(source_code: str) -> str | None:
     return None
 
 
-@router.get("/{user_id}/{unit_slug}", response_model=StudioBootstrapResponse)
-def read_studio_bootstrap(user_id: str, unit_slug: str) -> StudioBootstrapResponse:
+def _build_studio_bootstrap(user_id: str, unit_slug: str) -> StudioBootstrapResponse:
     unit = get_learning_unit(unit_slug)
     path = get_primary_learning_path_for_unit(unit_slug)
 
@@ -73,3 +74,18 @@ def read_studio_bootstrap(user_id: str, unit_slug: str) -> StudioBootstrapRespon
         ai_response=ai_response,
         learning_pulse=get_learning_pulse(user_id),
     )
+
+
+@router.get("/{user_id}/{unit_slug}", response_model=StudioBootstrapResponse)
+def read_studio_bootstrap(
+    user_id: str,
+    unit_slug: str,
+    current_user: UserProfile | None = Depends(resolve_optional_current_user),
+) -> StudioBootstrapResponse:
+    resolved_user_id = user_id
+    if user_id == "me":
+        if current_user is None:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        resolved_user_id = current_user.user_id
+
+    return _build_studio_bootstrap(resolved_user_id, unit_slug)

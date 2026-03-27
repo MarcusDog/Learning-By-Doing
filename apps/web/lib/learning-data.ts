@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import type {
   ApiAIDiagnoseResponse,
   ApiLearningPathSummary,
@@ -9,11 +10,10 @@ import type {
   ApiStudioBootstrapResponse,
 } from "../../../packages/shared-types/src";
 
-type ApiRequestOptions = RequestInit & {
+type ApiRequestOptions = RequestLearningApiOptions & {
   allowNotFound?: boolean;
+  allowUnauthorized?: boolean;
 };
-
-const DEFAULT_USER_ID = process.env.LEARNING_DEMO_USER_ID ?? "demo-user";
 
 export type LessonUnit = {
   slug: string;
@@ -53,6 +53,8 @@ export type LessonPath = {
   units: LessonUnit[];
 };
 
+export type LessonPathNavigationItem = Pick<LessonPath, "id" | "title">;
+
 export type StudioLesson = {
   pathId: string;
   pathTitle: string;
@@ -79,6 +81,70 @@ export type StudioLesson = {
   };
 };
 
+export type LearnerSummary = {
+  userId: string;
+  name: string;
+  email: string;
+  plan: "free" | "pro";
+  completedUnitCount: number;
+  streakDays: number;
+  recentActivity: string[];
+};
+
+export type LearnerUnitProgressSummary = {
+  unitSlug: string;
+  unitTitle: string;
+  pathId: string;
+  pathTitle: string;
+  status: ApiProgressRecord["status"];
+  completedStepCount: number;
+  totalStepCount: number;
+  lessonHref: string;
+  studioHref: string;
+};
+
+export type LearnerPathProgressSummary = {
+  pathId: string;
+  pathTitle: string;
+  totalUnits: number;
+  completedUnits: number;
+  inProgressUnits: number;
+  notStartedUnits: number;
+  completionPercent: number;
+  nextUnitSlug: string | null;
+  nextUnitTitle: string | null;
+  units: LearnerUnitProgressSummary[];
+};
+
+export type LearnerProgressSnapshot = {
+  totalUnits: number;
+  completedUnits: number;
+  inProgressUnits: number;
+  notStartedUnits: number;
+  completionPercent: number;
+  recentActivity: string[];
+  pathSummaries: LearnerPathProgressSummary[];
+};
+
+export type LearnerOverview = {
+  summary: LearnerSummary;
+  progressSnapshot: LearnerProgressSnapshot;
+};
+
+type ApiCurrentUserProfile = {
+  user_id: string;
+  name: string;
+  email: string;
+  plan: LearnerSummary["plan"];
+};
+
+type SessionAccessOptions = {
+  bootstrapGuestSession?: boolean;
+  accessToken?: string | null;
+};
+
+type RequestLearningApiOptions = RequestInit & SessionAccessOptions;
+
 function getApiBaseUrl() {
   const configuredBaseUrl =
     process.env.LEARNING_API_BASE_URL ??
@@ -90,16 +156,92 @@ function getApiBaseUrl() {
     : configuredBaseUrl;
 }
 
+async function getSessionAccessToken() {
+  const cookieStore = await cookies();
+  return cookieStore.get("learning_session")?.value ?? null;
+}
+
+async function createGuestSessionAccessToken() {
+  try {
+    const response = await fetch(`${getApiBaseUrl()}/auth/guest`, {
+      method: "POST",
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = (await response.json()) as {
+      access_token?: string;
+    };
+    return payload.access_token ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function resolveSessionAccessToken(bootstrapGuestSession = false) {
+  const existingAccessToken = await getSessionAccessToken();
+  if (existingAccessToken) {
+    return existingAccessToken;
+  }
+
+  if (!bootstrapGuestSession) {
+    return null;
+  }
+
+  return createGuestSessionAccessToken();
+}
+
+function withAuthorizationHeader(
+  init: RequestInit = {},
+  accessToken: string | null,
+) {
+  const headers = new Headers(init.headers);
+
+  if (accessToken && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${accessToken}`);
+  }
+
+  return {
+    ...init,
+    headers,
+  };
+}
+
+async function requestLearningApi(
+  pathname: string,
+  {
+    bootstrapGuestSession = false,
+    accessToken,
+    ...init
+  }: RequestLearningApiOptions = {},
+) {
+  const resolvedAccessToken = accessToken ?? await resolveSessionAccessToken(bootstrapGuestSession);
+  const requestInit = withAuthorizationHeader(init, resolvedAccessToken);
+
+  return fetch(`${getApiBaseUrl()}${pathname}`, {
+    cache: "no-store",
+    ...requestInit,
+  });
+}
+
 async function fetchLearningApi<T>(
   pathname: string,
-  { allowNotFound = false, ...init }: ApiRequestOptions = {},
+  {
+    allowNotFound = false,
+    allowUnauthorized = false,
+    ...init
+  }: ApiRequestOptions = {},
 ): Promise<T | undefined> {
-  const response = await fetch(`${getApiBaseUrl()}${pathname}`, {
-    cache: "no-store",
-    ...init,
-  });
+  const response = await requestLearningApi(pathname, init);
 
   if (allowNotFound && response.status === 404) {
+    return undefined;
+  }
+
+  if (allowUnauthorized && response.status === 401) {
     return undefined;
   }
 
@@ -158,6 +300,88 @@ function normalizeLearningPulse(progressFeed: ApiLearningPulse) {
     completedUnits: progressFeed.completed_units,
     streakDays: progressFeed.streak_days,
     recentActivity: progressFeed.recent_activity,
+  };
+}
+
+function getUnitProgressStatus(
+  unitSlug: string,
+  record: ApiProgressRecord | undefined,
+  completedUnitSlugs: Set<string>,
+): ApiProgressRecord["status"] {
+  if (completedUnitSlugs.has(unitSlug) || record?.status === "completed") {
+    return "completed";
+  }
+
+  if (record?.status === "in_progress") {
+    return "in_progress";
+  }
+
+  return "not_started";
+}
+
+function buildLearnerProgressSnapshot(
+  paths: LessonPath[],
+  pulse: ApiLearningPulse,
+  progressRecords: ApiProgressRecord[],
+): LearnerProgressSnapshot {
+  const recordsByUnit = new Map(progressRecords.map((record) => [record.unit_id, record] as const));
+  const completedUnitSlugs = new Set(pulse.completed_units);
+
+  const pathSummaries = paths.map((path) => {
+    const units = path.units.map((unit) => {
+      const record = recordsByUnit.get(unit.slug);
+      const totalStepCount = unit.practiceTasks.length + 1;
+      const status = getUnitProgressStatus(unit.slug, record, completedUnitSlugs);
+      const completedStepCount = status === "completed"
+        ? totalStepCount
+        : Math.min(record?.completed_step_ids.length ?? 0, totalStepCount);
+
+      return {
+        unitSlug: unit.slug,
+        unitTitle: unit.title,
+        pathId: path.id,
+        pathTitle: path.title,
+        status,
+        completedStepCount,
+        totalStepCount,
+        lessonHref: `/learn/${path.id}/${unit.slug}`,
+        studioHref: `/studio/${unit.slug}`,
+      } satisfies LearnerUnitProgressSummary;
+    });
+
+    const completedUnits = units.filter((unit) => unit.status === "completed").length;
+    const inProgressUnits = units.filter((unit) => unit.status === "in_progress").length;
+    const totalUnits = units.length;
+    const notStartedUnits = totalUnits - completedUnits - inProgressUnits;
+    const nextUnit = units.find((unit) => unit.status !== "completed") ?? null;
+
+    return {
+      pathId: path.id,
+      pathTitle: path.title,
+      totalUnits,
+      completedUnits,
+      inProgressUnits,
+      notStartedUnits,
+      completionPercent: totalUnits === 0 ? 0 : Math.round((completedUnits / totalUnits) * 100),
+      nextUnitSlug: nextUnit?.unitSlug ?? null,
+      nextUnitTitle: nextUnit?.unitTitle ?? null,
+      units,
+    } satisfies LearnerPathProgressSummary;
+  });
+
+  const totalUnits = pathSummaries.reduce((sum, path) => sum + path.totalUnits, 0);
+  const completedUnits = pathSummaries.reduce((sum, path) => sum + path.completedUnits, 0);
+  const inProgressUnits = pathSummaries.reduce((sum, path) => sum + path.inProgressUnits, 0);
+  const notStartedUnits = totalUnits - completedUnits - inProgressUnits;
+
+  return {
+    totalUnits,
+    completedUnits,
+    inProgressUnits,
+    notStartedUnits,
+    completionPercent: totalUnits === 0 ? 0 : Math.round((completedUnits / totalUnits) * 100),
+    recentActivity: pulse.recent_activity,
+    pathSummaries,
   };
 }
 
@@ -234,6 +458,25 @@ export async function listLessonPaths(): Promise<LessonPath[]> {
   return paths.map((path) => attachFeaturedUnit(path, unitsBySlug));
 }
 
+export async function listLessonPathNavigation(): Promise<LessonPathNavigationItem[]> {
+  const paths = await listPathSummaries();
+  return paths.map((path) => ({
+    id: path.id,
+    title: path.title,
+  }));
+}
+
+export function getRecommendedPathUnit(
+  path: LessonPath,
+  progressSummary?: LearnerPathProgressSummary | null,
+) {
+  if (!progressSummary?.nextUnitSlug) {
+    return path.featuredUnit;
+  }
+
+  return path.units.find((unit) => unit.slug === progressSummary.nextUnitSlug) ?? path.featuredUnit;
+}
+
 export async function getLessonPath(
   id: string,
 ): Promise<LessonPath | undefined> {
@@ -256,10 +499,16 @@ export async function getLessonPath(
 
 export async function getStudioLesson(
   unitSlug: string,
+  options: SessionAccessOptions = {},
 ): Promise<StudioLesson | undefined> {
   const bootstrap = await fetchLearningApi<ApiStudioBootstrapResponse>(
-    `/studio/${DEFAULT_USER_ID}/${unitSlug}`,
-    { allowNotFound: true },
+    `/studio/me/${unitSlug}`,
+    {
+      allowNotFound: true,
+      allowUnauthorized: true,
+      bootstrapGuestSession: true,
+      ...options,
+    },
   );
 
   if (!bootstrap) {
@@ -279,4 +528,119 @@ export async function getStudioLesson(
     },
     learningPulse: normalizeLearningPulse(bootstrap.learning_pulse),
   };
+}
+
+export async function getStudioSessionAccessToken() {
+  return resolveSessionAccessToken(true);
+}
+
+export async function getCurrentLearnerSummary(
+  options: SessionAccessOptions = {},
+): Promise<LearnerSummary | null> {
+  const resolvedAccessToken =
+    options.accessToken ?? await resolveSessionAccessToken(options.bootstrapGuestSession);
+  if (!resolvedAccessToken) {
+    return null;
+  }
+
+  try {
+    const profileResponse = await requestLearningApi("/auth/me", {
+      ...options,
+      accessToken: resolvedAccessToken,
+    });
+    if (profileResponse.status === 401) {
+      return null;
+    }
+    if (!profileResponse.ok) {
+      return null;
+    }
+
+    const pulseResponse = await requestLearningApi("/progress/me", {
+      ...options,
+      accessToken: resolvedAccessToken,
+    });
+    if (pulseResponse.status === 401) {
+      return null;
+    }
+    if (!pulseResponse.ok) {
+      return null;
+    }
+
+    const profile = (await profileResponse.json()) as ApiCurrentUserProfile;
+    const pulse = (await pulseResponse.json()) as ApiLearningPulse;
+
+    return {
+      userId: profile.user_id,
+      name: profile.name,
+      email: profile.email,
+      plan: profile.plan,
+      completedUnitCount: pulse.completed_units.length,
+      streakDays: pulse.streak_days,
+      recentActivity: pulse.recent_activity,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function getCurrentLearnerOverview(
+  paths: LessonPath[],
+  options: SessionAccessOptions = {},
+): Promise<LearnerOverview | null> {
+  const resolvedAccessToken =
+    options.accessToken ?? await resolveSessionAccessToken(options.bootstrapGuestSession);
+  if (!resolvedAccessToken) {
+    return null;
+  }
+
+  try {
+    const [profileResponse, pulseResponse, progressRecordsResponse] = await Promise.all([
+      requestLearningApi("/auth/me", {
+        ...options,
+        accessToken: resolvedAccessToken,
+      }),
+      requestLearningApi("/progress/me", {
+        ...options,
+        accessToken: resolvedAccessToken,
+      }),
+      requestLearningApi("/progress/me/records", {
+        ...options,
+        accessToken: resolvedAccessToken,
+      }).catch(() => null),
+    ]);
+
+    if (
+      profileResponse.status === 401 ||
+      pulseResponse.status === 401
+    ) {
+      return null;
+    }
+
+    if (!profileResponse.ok || !pulseResponse.ok) {
+      return null;
+    }
+
+    const [profile, pulse] = await Promise.all([
+      profileResponse.json() as Promise<ApiCurrentUserProfile>,
+      pulseResponse.json() as Promise<ApiLearningPulse>,
+    ]);
+    const progressRecords = progressRecordsResponse?.ok
+      ? ((await progressRecordsResponse.json()) as ApiProgressRecord[])
+      : [];
+
+    return {
+      summary: {
+        userId: profile.user_id,
+        name: profile.name,
+        email: profile.email,
+        plan: profile.plan,
+        completedUnitCount: pulse.completed_units.length,
+        streakDays: pulse.streak_days,
+        recentActivity: pulse.recent_activity,
+      },
+      progressSnapshot: buildLearnerProgressSnapshot(paths, pulse, progressRecords),
+    };
+  } catch {
+    return null;
+  }
 }
