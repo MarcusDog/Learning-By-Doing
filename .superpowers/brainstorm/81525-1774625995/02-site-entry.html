@@ -1,0 +1,89 @@
+<h2>整站入口结构</h2>
+<p class="subtitle">视觉方向已经定为 C。现在只决定用户进入网站后的第一层结构，这会直接影响首页、路径页、lesson 页、studio 页的关系。</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>App-First</h3>
+      <p>打开网站直接进入学习工作台。左侧章节树、中间编译与可视化、右侧 AI。首页不做营销页，只做学习入口。</p>
+      <div class="pros-cons">
+        <div class="pros">
+          <h4>优点</h4>
+          <ul>
+            <li>最像真正的软件产品</li>
+            <li>你自己日常使用效率最高</li>
+            <li>不浪费篇幅在介绍页</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <h4>代价</h4>
+          <ul>
+            <li>首次用户理解成本更高</li>
+            <li>知识目录、路径说明要在应用里做得更清楚</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Hybrid Product</h3>
+      <p>保留一个高级首页，突出课程路径、学习方式和产品价值；进入后才是工作台。更像 Apple 风格的正式产品站点。</p>
+      <div class="pros-cons">
+        <div class="pros">
+          <h4>优点</h4>
+          <ul>
+            <li>整站品牌感最强</li>
+            <li>课程体系和学习模式更容易展示</li>
+            <li>适合以后公开对外</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <h4>代价</h4>
+          <ul>
+            <li>实现范围更大</li>
+            <li>首页与工作台需要两套节奏</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Lesson-First</h3>
+      <p>首页先展示知识路径和章节卡片，用户从课程页进入，再进入 studio。更偏教学网站，不是“先开 IDE 再学习”。</p>
+      <div class="pros-cons">
+        <div class="pros">
+          <h4>优点</h4>
+          <ul>
+            <li>知识结构最清楚</li>
+            <li>适合从零开始的新手</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <h4>代价</h4>
+          <ul>
+            <li>不够像高级软件产品</li>
+            <li>编译器会变成第二层体验</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="mockup">
+    <div class="mockup-header">我的推荐</div>
+    <div class="mockup-body">
+      <p><strong>推荐 B · Hybrid Product</strong></p>
+      <p>因为你要的是“能真正用”的产品，不只是一个编译器壳子；同时你又明确要 Apple / Mac 那种高级站点感。B 最平衡：有品牌首页，也有真正能用的工作台。</p>
+      <p>如果你后面明确说“完全只给我自己用，不在乎展示”，那我会改推荐为 A。</p>
+    </div>
+  </div>
+</div>

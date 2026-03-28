@@ -1,0 +1,79 @@
+<h2>右侧 AI 专家的工作方式</h2>
+<p class="subtitle">现在只决定右侧 AI 面板怎么工作，不改整体布局。共同前提：选中代码后右键一定可以触发 AI 解释。</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header" style="background:#fbfbfd;color:#111827">A · Persistent Expert Chat</div>
+        <div class="mockup-body" style="background:linear-gradient(180deg,#fbfbfd,#f3f4f6);color:#111827;padding:14px">
+          <div style="border-radius:20px;background:#fff;border:1px solid rgba(15,23,42,.08);padding:14px;min-height:250px">
+            <div style="font-size:12px;color:#6b7280;letter-spacing:.14em;margin-bottom:10px">AI EXPERT</div>
+            <div style="height:68px;border-radius:14px;background:#eef2ff;margin-bottom:10px"></div>
+            <div style="height:78px;border-radius:14px;background:#f8fafc;margin-bottom:10px"></div>
+            <div style="height:68px;border-radius:14px;background:#eef2ff"></div>
+            <div style="height:40px;border-radius:14px;background:#111827;margin-top:12px"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Persistent Expert Chat</h3>
+      <p>右侧就是一个一直存在的 AI 专家会话。右键选中代码会把那段代码连同问题插入这个会话里，形成连续学习记录。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header" style="background:#fbfbfd;color:#111827">B · Tabbed Tutor Modes</div>
+        <div class="mockup-body" style="background:linear-gradient(180deg,#fbfbfd,#f3f4f6);color:#111827;padding:14px">
+          <div style="border-radius:20px;background:#fff;border:1px solid rgba(15,23,42,.08);padding:14px;min-height:250px">
+            <div style="display:flex;gap:8px;margin-bottom:12px">
+              <div style="padding:8px 12px;border-radius:999px;background:#111827;color:#fff;font-size:12px">Explain</div>
+              <div style="padding:8px 12px;border-radius:999px;background:#f3f4f6;font-size:12px">Debug</div>
+              <div style="padding:8px 12px;border-radius:999px;background:#f3f4f6;font-size:12px">Coach</div>
+            </div>
+            <div style="height:84px;border-radius:14px;background:#eef2ff;margin-bottom:10px"></div>
+            <div style="height:84px;border-radius:14px;background:#f8fafc"></div>
+            <div style="height:40px;border-radius:14px;background:#111827;margin-top:12px"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Tabbed Tutor Modes</h3>
+      <p>右侧不是一个连续对话，而是分成 Explain / Debug / Coach 三个标签。右键选中代码后默认跳到 Explain。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header" style="background:#fbfbfd;color:#111827">C · Minimal Inspector</div>
+        <div class="mockup-body" style="background:linear-gradient(180deg,#fbfbfd,#f3f4f6);color:#111827;padding:14px">
+          <div style="border-radius:20px;background:#fff;border:1px solid rgba(15,23,42,.08);padding:14px;min-height:250px">
+            <div style="font-size:12px;color:#6b7280;letter-spacing:.14em;margin-bottom:10px">AI INSPECTOR</div>
+            <div style="height:54px;border-radius:14px;background:#eef2ff;margin-bottom:10px"></div>
+            <div style="height:120px;border-radius:14px;background:#f8fafc"></div>
+            <div style="height:40px;border-radius:14px;background:#111827;margin-top:12px"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Minimal Inspector</h3>
+      <p>右侧不保存很多聊天历史，只展示当前选中代码的解释和一个简短输入框。更干净，但“专家感”和连续学习感会弱一些。</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="mockup">
+    <div class="mockup-header">我的推荐</div>
+    <div class="mockup-body">
+      <p><strong>推荐 A · Persistent Expert Chat</strong></p>
+      <p>因为你说的是“AI 专家”，不是一个解释弹窗。A 最像真正长期陪学的专家系统，而且最适合把右键解释、自由提问、查错、给提示都放进同一个连续上下文里。</p>
+    </div>
+  </div>
+</div>

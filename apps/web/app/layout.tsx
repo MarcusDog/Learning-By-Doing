@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Space_Grotesk, IBM_Plex_Mono } from "next/font/google";
+import { WebThemeProvider } from "../components/web-theme-provider";
 import "./globals.css";
 
 const sans = Space_Grotesk({
@@ -22,9 +23,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="zh-CN">
       <body className={`${sans.variable} ${mono.variable}`}>
-        {children}
+        <WebThemeProvider>{children}</WebThemeProvider>
       </body>
     </html>
   );
 }
-

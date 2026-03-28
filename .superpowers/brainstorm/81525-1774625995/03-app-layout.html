@@ -1,0 +1,122 @@
+<h2>App-First 主界面排布</h2>
+<p class="subtitle">现在默认：打开网站直接进入学习工作台。只决定这个工作台的主界面骨架。</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header" style="background:#fbfbfd;color:#111827">A · Balanced Three-Pane</div>
+        <div class="mockup-body" style="background:linear-gradient(180deg,#fbfbfd,#f3f4f6);color:#111827;padding:12px">
+          <div style="height:24px;border-radius:12px;background:#ffffff;border:1px solid rgba(15,23,42,.08);margin-bottom:10px"></div>
+          <div style="display:grid;grid-template-columns:220px 1fr 320px;gap:12px;min-height:300px">
+            <div style="border-radius:20px;background:#fff;border:1px solid rgba(15,23,42,.08);padding:12px">
+              <div style="font-size:12px;color:#6b7280;letter-spacing:.14em;margin-bottom:10px">CHAPTER TREE</div>
+              <div style="height:38px;border-radius:14px;background:#111827;color:#fff;padding:10px 12px;margin-bottom:8px">Python Variables</div>
+              <div style="height:38px;border-radius:14px;background:#f3f4f6;padding:10px 12px;margin-bottom:8px">Loops</div>
+              <div style="height:38px;border-radius:14px;background:#f3f4f6;padding:10px 12px">Functions</div>
+            </div>
+            <div style="display:grid;grid-template-rows:132px 1fr;gap:12px">
+              <div style="border-radius:22px;background:#fff;border:1px solid rgba(15,23,42,.08);padding:14px">
+                <div style="font-size:12px;color:#6b7280;letter-spacing:.14em;margin-bottom:10px">VISUALIZATION</div>
+                <div style="display:flex;gap:10px">
+                  <div style="flex:1;height:62px;border-radius:16px;background:#111827"></div>
+                  <div style="flex:1;height:62px;border-radius:16px;background:#dbeafe"></div>
+                  <div style="flex:1;height:62px;border-radius:16px;background:#ede9fe"></div>
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:1.15fr .85fr;gap:12px">
+                <div style="border-radius:22px;background:#0b1020;color:#dbeafe;padding:14px">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                    <strong>Python Compiler</strong>
+                    <div style="padding:8px 14px;border-radius:999px;background:#fff;color:#111827;font-size:12px">Run</div>
+                  </div>
+                  <div style="height:160px;border-radius:18px;background:#121a31"></div>
+                </div>
+                <div style="border-radius:22px;background:#fff;border:1px solid rgba(15,23,42,.08);padding:14px">
+                  <strong>Templates & Tasks</strong>
+                  <div style="height:34px;border-radius:12px;background:#f3f4f6;margin-top:12px"></div>
+                  <div style="height:34px;border-radius:12px;background:#f3f4f6;margin-top:8px"></div>
+                  <div style="height:34px;border-radius:12px;background:#f3f4f6;margin-top:8px"></div>
+                </div>
+              </div>
+            </div>
+            <div style="border-radius:22px;background:#fff;border:1px solid rgba(15,23,42,.08);padding:14px">
+              <div style="font-size:12px;color:#6b7280;letter-spacing:.14em;margin-bottom:10px">AI EXPERT</div>
+              <div style="height:94px;border-radius:16px;background:#f9fafb"></div>
+              <div style="height:94px;border-radius:16px;background:#eef2ff;margin-top:10px"></div>
+              <div style="height:40px;border-radius:14px;background:#111827;margin-top:10px"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Balanced Three-Pane</h3>
+      <p>完全符合你最早给的左右中结构。信息最稳定，最好用，也最像真正的软件工作台。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header" style="background:#fbfbfd;color:#111827">B · Wide Canvas</div>
+        <div class="mockup-body" style="background:linear-gradient(180deg,#fbfbfd,#f3f4f6);color:#111827;padding:12px">
+          <div style="height:24px;border-radius:12px;background:#ffffff;border:1px solid rgba(15,23,42,.08);margin-bottom:10px"></div>
+          <div style="display:grid;grid-template-columns:200px 1fr 260px;gap:12px;min-height:300px">
+            <div style="border-radius:20px;background:#fff;border:1px solid rgba(15,23,42,.08);padding:12px"></div>
+            <div style="display:grid;grid-template-rows:150px 1fr;gap:12px">
+              <div style="border-radius:22px;background:#fff;border:1px solid rgba(15,23,42,.08);padding:14px"></div>
+              <div style="border-radius:22px;background:#0b1020;color:#dbeafe;padding:14px"></div>
+            </div>
+            <div style="display:grid;grid-template-rows:160px 1fr;gap:12px">
+              <div style="border-radius:22px;background:#fff;border:1px solid rgba(15,23,42,.08);padding:14px"></div>
+              <div style="border-radius:22px;background:#fff;border:1px solid rgba(15,23,42,.08);padding:14px"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Wide Canvas</h3>
+      <p>把中间编译器和可视化做得更大，右侧 AI 与模板压缩成更窄的辅栏。更偏“代码优先”。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header" style="background:#fbfbfd;color:#111827">C · Inspector Dock</div>
+        <div class="mockup-body" style="background:linear-gradient(180deg,#fbfbfd,#f3f4f6);color:#111827;padding:12px">
+          <div style="height:24px;border-radius:12px;background:#ffffff;border:1px solid rgba(15,23,42,.08);margin-bottom:10px"></div>
+          <div style="display:grid;grid-template-columns:220px 1fr;gap:12px;min-height:300px">
+            <div style="border-radius:20px;background:#fff;border:1px solid rgba(15,23,42,.08);padding:12px"></div>
+            <div style="display:grid;grid-template-rows:132px 1fr 180px;gap:12px">
+              <div style="border-radius:22px;background:#fff;border:1px solid rgba(15,23,42,.08);padding:14px"></div>
+              <div style="display:grid;grid-template-columns:1.2fr .8fr;gap:12px">
+                <div style="border-radius:22px;background:#0b1020;color:#dbeafe;padding:14px"></div>
+                <div style="border-radius:22px;background:#fff;border:1px solid rgba(15,23,42,.08);padding:14px"></div>
+              </div>
+              <div style="border-radius:22px;background:#fff;border:1px solid rgba(15,23,42,.08);padding:14px">
+                <strong>AI EXPERT (bottom dock)</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Inspector Dock</h3>
+      <p>AI 专家改成底部停靠区，不占右侧高度。更适合窄屏，但没有你最初想要的“右侧专家面板”那么直接。</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="mockup">
+    <div class="mockup-header">我的推荐</div>
+    <div class="mockup-body">
+      <p><strong>推荐 A · Balanced Three-Pane</strong></p>
+      <p>原因很简单：这是你最早明确指定的结构，而且最容易做成一个真正稳定、长期可扩展的 Python 学习工作台。以后加更多语言，也最好沿这个骨架扩。</p>
+    </div>
+  </div>
+</div>

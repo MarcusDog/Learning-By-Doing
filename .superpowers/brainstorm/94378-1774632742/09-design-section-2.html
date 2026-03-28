@@ -1,0 +1,91 @@
+<h2>设计方案 · 第 2 部分</h2>
+<p class="subtitle">数据结构、DeepSeek AI、内容补全策略。这里把“真正能用”落到后端与学习内容层，不只是界面。</p>
+
+<div class="section">
+  <div class="mockup">
+    <div class="mockup-header">系统数据流</div>
+    <div class="mockup-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px">
+        <div style="border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:14px;background:#111827">
+          <strong>用户账户</strong>
+          <p style="margin-top:8px;color:#cbd5e1">邮箱、密码哈希、最近学习位置、用户偏好、会员状态</p>
+        </div>
+        <div style="border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:14px;background:#111827">
+          <strong>学习内容</strong>
+          <p style="margin-top:8px;color:#cbd5e1">路径、章节、知识解释、示例代码、模板、习题、可视化帧</p>
+        </div>
+        <div style="border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:14px;background:#111827">
+          <strong>学习记录</strong>
+          <p style="margin-top:8px;color:#cbd5e1">代码草稿、已完成练习、最近打开章节、AI 会话摘要</p>
+        </div>
+        <div style="border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:14px;background:#111827">
+          <strong>运行与 AI</strong>
+          <p style="margin-top:8px;color:#cbd5e1">Python runner 执行结果、DeepSeek 问答、选中代码解释</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">DeepSeek AI 专家设计</div>
+    <div class="mockup-body">
+      <ul>
+        <li>后端新增正式 AI service，不再用占位 explain</li>
+        <li>统一接入 <code>DEEPSEEK_API_KEY</code> 和 <code>DEEPSEEK_API_URL</code></li>
+        <li>右键选中代码时，传递：选中文本 + 当前完整代码 + 当前章节上下文</li>
+        <li>AI 面板支持 4 类动作：解释、查错、提示、延伸练习</li>
+        <li>AI 回复进入持续型专家会话，而不是一次性弹窗</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">Python 工作台设计</div>
+    <div class="mockup-body">
+      <ul>
+        <li>只支持 Python，明确写成产品范围，不做伪多语言</li>
+        <li>编译器支持从 0 开始空白模板</li>
+        <li>同时提供：课程示例模板、练习模板、框架模板</li>
+        <li>运行后优先展示真实变量态和 stdout / stderr</li>
+        <li>用户离开页面时自动保存草稿与最近位置</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="mockup">
+    <div class="mockup-header">内容补全策略（明确纳入首版）</div>
+    <div class="mockup-body">
+      <p><strong>你刚才强调的“后续一定要把内容补上”，这里不作为备注，而是直接写进首版产品定义：</strong></p>
+      <ul>
+        <li>每个已上线章节必须同时包含：知识解释、示例代码、从 0 开始模板、至少 2 个习题、至少 1 个框架练习</li>
+        <li>每个章节必须有可视化帧，不能只有代码编辑器</li>
+        <li>AI 专家必须知道当前章节目标，不能脱离上下文瞎回答</li>
+        <li>第一版至少先把 Python 主路径做成完整可学，而不是只有 1-2 个 demo unit</li>
+        <li>未完成内容不上线，不允许用“占位章节”假装课程完整</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="pros-cons">
+  <div class="pros">
+    <h4>为什么这部分重要</h4>
+    <ul>
+      <li>它决定这个产品是不是“真能用”</li>
+      <li>它把 AI、编译器、课程内容真正绑到一起</li>
+      <li>它避免做出只有漂亮界面的空壳</li>
+    </ul>
+  </div>
+  <div class="cons">
+    <h4>由此带来的约束</h4>
+    <ul>
+      <li>首版范围要聚焦 Python 主路径</li>
+      <li>不能一开始铺太多语言</li>
+      <li>内容生产本身要进入实施计划，不是附属工作</li>
+    </ul>
+  </div>
+</div>

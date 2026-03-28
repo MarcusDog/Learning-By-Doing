@@ -1,0 +1,90 @@
+<h2>编译器 / 在线 IDE 研究结论</h2>
+<p class="subtitle">这页是根据当前主流编辑器和在线 IDE 的官方资料做的归纳，目标不是抄一个，而是抽取优点、明确避坑、形成我们自己的产品策略。</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">值得吸收的优点</div>
+    <div class="mockup-body">
+      <ul>
+        <li><strong>Monaco</strong>：
+          完整编辑器能力强，官方 API 里已经覆盖了 command palette、多光标、hover、折叠、sticky scroll、suggest、rename、find、快捷键等。
+        </li>
+        <li><strong>CodeMirror</strong>：
+          更轻、更可组合，核心扩展里明确支持 keymap、多重选择、lint、自动缩进、事务过滤和语言扩展。
+        </li>
+        <li><strong>Replit</strong>：
+          持续型 AI 会话、多线程聊天、多人协作、checkpoint / rollback 这些“长期工作流”做得对。
+        </li>
+        <li><strong>LeetCode</strong>：
+          模板、恢复上次提交代码、重置默认模板、播放调试 playground、编辑器设置、全屏，这些学习型动作非常实用。
+        </li>
+        <li><strong>StackBlitz / WebContainers</strong>：
+          “立即进入可交互编码环境”的速度和产品感非常强。
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">必须避开的缺点</div>
+    <div class="mockup-body">
+      <ul>
+        <li>只有 <strong>textarea</strong> 的伪编辑器体验，长期使用很差。</li>
+        <li>只做“运行代码 + 一个输出框”，没有变量态、错误区分、草稿恢复、模板管理。</li>
+        <li>右键菜单只有单一 AI 动作，没形成学习动作系统。</li>
+        <li>纯浏览器 Python 运行当唯一方案：
+          <strong>Pyodide / JupyterLite</strong> 官方文档明确提到浏览器存储、Service Worker 和 WebAssembly 包兼容性限制，这不适合当多用户产品的唯一执行路径。
+        </li>
+        <li>把协作 / AI / 模板都做成散落按钮，没有统一工作流。</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="mockup">
+    <div class="mockup-header">我的综合结论（推荐方案）</div>
+    <div class="mockup-body">
+      <p><strong>编辑器层：</strong>以 <strong>Monaco</strong> 为主，不用简单输入框。理由是它最接近“真正能长期用”的产品标准，功能深度够，最适合做多用户正式产品。</p>
+      <p><strong>学习动作层：</strong>吸收 LeetCode / Replit 的思路，在 Monaco 上叠加我们自己的学习动作系统，而不是把学习逻辑写死在编辑器里。</p>
+      <p><strong>执行层：</strong>Python 仍以现有后端 runner 为正式执行路径。浏览器内 Python（Pyodide）后续可以作为“快速预运行”补充，但不做首版唯一执行方案。</p>
+    </div>
+  </div>
+</div>
+
+<div class="pros-cons">
+  <div class="pros">
+    <h4>首版编译器必须具备</h4>
+    <ul>
+      <li>Monaco 级编辑体验：高亮、缩进、快捷键、撤销重做、命令能力</li>
+      <li>模板系统：课程示例 / 练习模板 / 框架模板 / 从 0 开始</li>
+      <li>运行系统：stdout / stderr / 变量态 / 耗时 / 最近一次成功运行</li>
+      <li>草稿系统：自动保存、恢复上次代码、重置模板</li>
+      <li>右键动作系统：解释代码、分析报错、生成相似练习、加入笔记</li>
+      <li>专家会话：右键动作进入右侧持续型 AI 会话，不打断上下文</li>
+    </ul>
+  </div>
+  <div class="cons">
+    <h4>明确不做的误区</h4>
+    <ul>
+      <li>不做“看起来像 IDE，实际只是输入框”的假体验</li>
+      <li>不把 Pyodide / JupyterLite 当唯一 Python 执行环境</li>
+      <li>不把右键菜单缩成一个“问 AI”按钮</li>
+      <li>不做过多语言首版扩张，先把 Python 做深</li>
+    </ul>
+  </div>
+</div>
+
+<div class="section">
+  <div class="mockup">
+    <div class="mockup-header">创新点（不是照抄现有产品）</div>
+    <div class="mockup-body">
+      <ul>
+        <li><strong>学习型右键系统</strong>：右键围绕“理解、纠错、迁移、记录”四类动作，而不是传统 IDE 的文件操作菜单。</li>
+        <li><strong>可视化优先的运行反馈</strong>：运行后先看到变量流和关键步骤，再看 stdout/stderr。</li>
+        <li><strong>模板不是静态代码片段</strong>：模板和章节目标、练习目标、AI 上下文联动。</li>
+        <li><strong>恢复学习现场</strong>：进入应用直接恢复到上次章节、上次代码、上次 AI 会话上下文。</li>
+      </ul>
+    </div>
+  </div>
+</div>

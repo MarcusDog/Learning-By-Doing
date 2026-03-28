@@ -1,0 +1,97 @@
+<h2>实现路径对比</h2>
+<p class="subtitle">已锁定：Premium Hybrid 视觉、三栏工作台、打开即回到上次学习位置、持续型 AI 专家、多用户、邮箱密码、DeepSeek、只做学员端。现在只决定怎么实现。</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>最小改造现有项目</h3>
+      <p>保留现有 Next.js + FastAPI + runner 结构，只重做前端页面，补登录、多用户持久化、DeepSeek。</p>
+      <div class="pros-cons">
+        <div class="pros">
+          <h4>优点</h4>
+          <ul>
+            <li>最快</li>
+            <li>改动范围可控</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <h4>问题</h4>
+          <ul>
+            <li>容易背着旧 demo 结构前进</li>
+            <li>整站气质容易不统一</li>
+            <li>多用户产品边界会继续混乱</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>在现有技术栈上重建产品骨架</h3>
+      <p>继续用 Next.js + FastAPI + Python runner，但把学员端信息架构、设计系统、认证、用户数据、AI 接入当成正式产品重新搭一遍。</p>
+      <div class="pros-cons">
+        <div class="pros">
+          <h4>优点</h4>
+          <ul>
+            <li>保留已有可运行基础</li>
+            <li>能把 demo 感拆掉</li>
+            <li>最适合做真正可用的第一版产品</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <h4>代价</h4>
+          <ul>
+            <li>会是一次较大的前端和数据层重构</li>
+            <li>比 A 慢，但质量高很多</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>全栈重起一套新架构</h3>
+      <p>连后端与数据模型都一起换，例如重新选认证、数据库、前端状态管理和新的服务边界。</p>
+      <div class="pros-cons">
+        <div class="pros">
+          <h4>优点</h4>
+          <ul>
+            <li>理论上最干净</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <h4>问题</h4>
+          <ul>
+            <li>范围过大</li>
+            <li>会拖慢首版</li>
+            <li>不适合你现在要尽快得到可用产品</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="mockup">
+    <div class="mockup-header">我的推荐</div>
+    <div class="mockup-body">
+      <p><strong>推荐 B · 在现有技术栈上重建产品骨架</strong></p>
+      <p>这是最稳的路径：不浪费现有 Next.js / FastAPI / Python runner 基础，但也不再被旧 demo 页面和旧信息结构绑住。结果会是“同栈重建产品”，不是“继续给 demo 打补丁”。</p>
+      <p>第一版产品定义会是：</p>
+      <ul>
+        <li>Next.js 学员端整站重做成高级应用壳层</li>
+        <li>邮箱密码登录</li>
+        <li>真实多用户数据持久化</li>
+        <li>Python 编译运行器可用</li>
+        <li>DeepSeek 驱动右侧 AI 专家</li>
+        <li>首页即恢复上次学习位置</li>
+      </ul>
+    </div>
+  </div>
+</div>

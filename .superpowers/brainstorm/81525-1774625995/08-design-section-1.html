@@ -1,0 +1,80 @@
+<h2>设计方案 · 第 1 部分</h2>
+<p class="subtitle">产品结构与页面关系。当前方案基于你已经确认的决策：多用户、邮箱密码、DeepSeek、App-First、三栏工作台、持续型 AI 专家。</p>
+
+<div class="section">
+  <div class="mockup">
+    <div class="mockup-header">产品骨架</div>
+    <div class="mockup-body">
+      <div style="display:grid;grid-template-columns:1fr;gap:14px">
+        <div style="border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:14px;background:#111827">
+          <strong>1. Auth Gate</strong>
+          <p style="margin:8px 0 0;color:#cbd5e1">用户先进入登录 / 注册，邮箱 + 密码。登录成功后进入产品，不走传统营销首页。</p>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+          <div style="border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:14px;background:#0f172a">
+            <strong>2. Resume Router</strong>
+            <p style="margin:8px 0 0;color:#cbd5e1">系统读取用户最近学习记录，默认直接跳转到上次学习的 studio。</p>
+          </div>
+          <div style="border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:14px;background:#0f172a">
+            <strong>3. Studio Workspace</strong>
+            <p style="margin:8px 0 0;color:#cbd5e1">主产品界面。左章节，中可视化 + 编译器 + 模板，右 AI 专家。</p>
+          </div>
+          <div style="border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:14px;background:#0f172a">
+            <strong>4. Secondary Views</strong>
+            <p style="margin:8px 0 0;color:#cbd5e1">独立的 lesson/detail 页面保留，但从属于工作台，不是主入口。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">核心页面</div>
+    <div class="mockup-body">
+      <ul>
+        <li><strong>/auth</strong>：登录 / 注册</li>
+        <li><strong>/app</strong>：工作台入口，自动恢复最近学习位置</li>
+        <li><strong>/app/studio/[unitSlug]</strong>：核心学习工作台</li>
+        <li><strong>/app/lesson/[unitSlug]</strong>：知识解释页</li>
+        <li><strong>/app/catalog</strong>：章节 / 路径总览页</li>
+        <li><strong>/app/account</strong>：账号与学习设置</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">工作台内部结构</div>
+    <div class="mockup-body">
+      <ul>
+        <li><strong>左侧</strong>：课程路径树、章节切换、当前进度</li>
+        <li><strong>中上</strong>：可视化区域，优先展示运行态变量变化</li>
+        <li><strong>中下</strong>：Python 编译器、stdout/stderr、stdin</li>
+        <li><strong>中下右侧</strong>：模板、习题、框架练习、从 0 开始</li>
+        <li><strong>右侧</strong>：持续型 AI 专家会话，支持右键解释选中代码</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="pros-cons">
+    <div class="pros">
+      <h4>这个结构的核心判断</h4>
+      <ul>
+        <li>网站不再以“首页展示”作为中心，而以“恢复学习现场”作为中心</li>
+        <li>lesson 退居二线，studio 成为主产品界面</li>
+        <li>整个产品会更像学习操作系统，而不是课程网站</li>
+      </ul>
+    </div>
+    <div class="cons">
+      <h4>明确不做的事</h4>
+      <ul>
+        <li>第一版不做内容后台</li>
+        <li>第一版不做多语言编译器，只做 Python</li>
+        <li>第一版不做营销型官网首页</li>
+      </ul>
+    </div>
+  </div>
+</div>
